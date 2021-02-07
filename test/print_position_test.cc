@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "chessbot/chessbot.h"
+#include "chessbot/position.h"
 
 #include <sstream>
 

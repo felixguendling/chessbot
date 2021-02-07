@@ -1,11 +1,13 @@
-#include "chessbot/chessbot.h"
+#include "chessbot/position.h"
 
-#include <algorithm>
 #include <istream>
 #include <ostream>
+#include <sstream>
 
 #include "utl/enumerate.h"
 #include "utl/verify.h"
+
+#include "chessbot/move.h"
 
 namespace chessbot {
 
@@ -46,9 +48,9 @@ std::istream& operator>>(std::istream& in, position& p) {
   auto const set_piece_position = [&](char input) {
     auto const is_white = std::isupper(input) != 0;
     auto const pieces = is_white ? white_pieces : black_pieces;
-    auto const index_it = std::find(begin(pieces), end(pieces), input);
-    utl::verify(index_it != end(pieces), "{} is not a valid piece", input);
-    auto const index = std::distance(begin(pieces), index_it);
+    auto const index = pieces.find(input);
+    utl::verify(index != std::string_view::npos, "{} is not a valid piece",
+                input);
     auto const mask = rank_file_to_bitboard(rank, file);
     p.piece_states_[(!is_white * NUM_PIECE_TYPES) + index] ^= mask;
   };
@@ -139,6 +141,35 @@ std::istream& operator>>(std::istream& in, position& p) {
       case FULLMOVE_NUMBER: in >> p.full_move_count_; return in;
     }
   }
+}
+
+std::string position::to_str() const {
+  std::stringstream ss;
+  ss << *this;
+  return ss.str();
+}
+
+position position::make_move(move const& m) {
+  auto next = *this;
+
+  auto const from = m.from();
+  auto const to = m.to();
+
+  for (auto& pieces : next.get_pieces(next.to_move_)) {
+    if ((pieces & from) != 0U) {
+      pieces ^= (from | to);
+      break;
+    }
+  }
+  for (auto& pieces : next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)) {
+    if (pieces & to) {
+      pieces ^= to;
+      break;
+    }
+  }
+  next.to_move_ = next.to_move_ == WHITE ? BLACK : WHITE;
+
+  return next;
 }
 
 }  // namespace chessbot
