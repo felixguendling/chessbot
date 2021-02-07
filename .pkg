@@ -1,0 +1,8 @@
+[doctest]
+  url=git@github.com:motis-project/doctest.git
+  branch=master
+  commit=eca5f41304b95786888e6f5ffff6fdd2b23ba3e2
+[utl]
+  url=git@github.com:motis-project/utl.git
+  branch=master
+  commit=3195a2f32b2bb48e924bdf7853789664ad844f1f
