@@ -20,8 +20,10 @@ struct position {
   friend std::ostream& operator<<(std::ostream&, position const&);
   friend std::istream& operator>>(std::istream&, position&);
 
-  position make_move(move const&);
+  void print() const;
+  position make_move(move const&) const;
   std::string to_str() const;
+  std::string to_fen() const;
 
   std::span<bitboard> get_pieces(color c) {
     return c == color::WHITE

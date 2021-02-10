@@ -4,14 +4,108 @@
 #include <ostream>
 #include <sstream>
 
+#include "fmt/color.h"
+
 #include "utl/enumerate.h"
 #include "utl/verify.h"
 
 #include "chessbot/move.h"
+#include "chessbot/util.h"
 
 namespace chessbot {
 
+std::string position::to_fen() const {
+  std::stringstream ss;
+  auto empty_square_count = 0U;
+  for (auto rank = 0U; rank != 8; ++rank) {
+    for (auto file = 0U; file != 8; ++file) {
+      auto empty = true;
+      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
+        if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
+          if (empty_square_count != 0U) {
+            ss << empty_square_count;
+            empty_square_count = 0U;
+          }
+          ss << (i < NUM_PIECE_TYPES ? white_pieces[i]
+                                     : black_pieces[i % NUM_PIECE_TYPES]);
+          empty = false;
+        }
+      }
+      if (empty) {
+        ++empty_square_count;
+      }
+    }
+
+    if (empty_square_count != 0U) {
+      ss << empty_square_count;
+      empty_square_count = 0U;
+    }
+
+    if (rank != 7U) {
+      ss << '/';
+    }
+  }
+
+  ss << ' ' << (to_move_ == color::WHITE ? 'w' : 'b') << ' ';
+
+  if (!white_can_short_castle_ && !white_can_long_castle_ &&
+      !black_can_short_castle_ && !black_can_long_castle_) {
+    ss << '-';
+  } else {
+    if (white_can_short_castle_) {
+      ss << 'K';
+    }
+    if (white_can_long_castle_) {
+      ss << 'Q';
+    }
+    if (black_can_short_castle_) {
+      ss << 'k';
+    }
+    if (black_can_long_castle_) {
+      ss << 'q';
+    }
+  }
+
+  ss << ' ' << (en_passant_ == 0U ? "-" : get_square_name(en_passant_)) << ' '
+     << half_move_clock_ << ' ' << full_move_count_;
+
+  return ss.str();
+}
+
+void position::print() const {
+  bool white = true;
+  fmt::print(" a|b|c|d|e|f|g|h|\n");
+  for (auto rank = 0U; rank != 8; ++rank) {
+    fmt::print("{}", 8 - rank);
+    for (auto file = 0U; file != 8; ++file) {
+      auto empty = true;
+      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
+        if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
+          fmt::print(
+              fmt::emphasis::bold |
+                  (i < NUM_PIECE_TYPES ? fmt::fg(fmt::color::red)
+                                       : fmt::fg(fmt::color::blue)) |
+                  fmt::bg(white ? fmt::color::white : fmt::color::black),
+              "{}",
+              utf8_pieces[i < NUM_PIECE_TYPES ? 0 : 1][i % NUM_PIECE_TYPES]);
+          empty = false;
+        }
+      }
+      if (empty) {
+        fmt::print(fmt::emphasis::bold |
+                       fmt::bg(white ? fmt::color::white : fmt::color::black),
+                   " ");
+      }
+      fmt::print("|");
+      white = !white;
+    }
+    white = !white;
+    fmt::print("\n");
+  }
+}
+
 std::ostream& operator<<(std::ostream& out, position const& p) {
+  bool white = true;
   out << "  | a  | b  | c  | d  | e  | f  | g  | h  |\n";
   for (auto rank = 0U; rank != 8; ++rank) {
     out << (8 - rank) << " |";
@@ -28,6 +122,7 @@ std::ostream& operator<<(std::ostream& out, position const& p) {
         out << "   ";
       }
       out << " |";
+      white = !white;
     }
     out << '\n';
   }
@@ -149,7 +244,7 @@ std::string position::to_str() const {
   return ss.str();
 }
 
-position position::make_move(move const& m) {
+position position::make_move(move const& m) const {
   auto next = *this;
 
   auto const from = m.from();
@@ -167,6 +262,29 @@ position position::make_move(move const& m) {
       break;
     }
   }
+  if (next.en_passant_ & to & next.get_pieces(next.to_move_)[PAWN]) {
+    auto const en_passant_capture_field = next.to_move_ == WHITE
+                                              ? next.en_passant_ << bitboard{8}
+                                              : next.en_passant_ >> bitboard{8};
+    next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)[PAWN] &=
+        ~en_passant_capture_field;
+  }
+  if ((to & next.get_pieces(next.to_move_)[PAWN]) != 0U &&
+      std::abs(static_cast<int>(cista::trailing_zeros(from)) -
+               static_cast<int>(cista::trailing_zeros(to))) == 16) {
+    next.en_passant_ = next.to_move_ == WHITE ? (from >> 8) : (from << 8);
+  } else {
+    next.en_passant_ = 0U;
+  }
+  if (m.special_move_ == move::special_move::PROMOTION) {
+    std::cout << "PROMOTION\n";
+    next.get_pieces(next.to_move_)[PAWN] ^= to;
+  }
+
+  if (next.to_move_ == BLACK) {
+    ++next.full_move_count_;
+  }
+
   next.to_move_ = next.to_move_ == WHITE ? BLACK : WHITE;
 
   return next;

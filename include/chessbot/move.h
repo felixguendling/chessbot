@@ -11,15 +11,21 @@ namespace chessbot {
 struct move {
   explicit move(bitboard from, bitboard to)
       : from_field_{static_cast<uint16_t>(cista::trailing_zeros(from))},
-        to_field_{static_cast<uint16_t>(cista::trailing_zeros(to))} {}
+        to_field_{static_cast<uint16_t>(cista::trailing_zeros(to))},
+        special_move_{special_move::NONE} {}
 
   bitboard from() const { return rank_file_to_bitboard(0, from_field_); }
   bitboard to() const { return rank_file_to_bitboard(0, to_field_); }
 
   uint16_t from_field_ : 6;
   uint16_t to_field_ : 6;
-  uint16_t promotion_piece_type_ : 2;
-  uint16_t special_move_ : 2;
+  enum class promotion_piece_type {
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN
+  } promotion_piece_type_ : 2;
+  enum class special_move { NONE, PROMOTION, CASTLE } special_move_ : 2;
 };
 
 inline constexpr bitboard full_rank_bitboard(unsigned i) {
@@ -53,17 +59,32 @@ void for_each_possible_move(position const& p, Fn&& f) {
                                opposing_player[BISHOP] | opposing_player[ROOK] |
                                opposing_player[QUEEN] | opposing_player[KING];
 
+  auto const move_with_promotion_check = [&](move m) {
+    if (m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
+      m.special_move_ = move::special_move::PROMOTION;
+      m.promotion_piece_type_ = move::promotion_piece_type::KNIGHT;
+      f(m);
+      m.promotion_piece_type_ = move::promotion_piece_type::ROOK;
+      f(m);
+      m.promotion_piece_type_ = move::promotion_piece_type::BISHOP;
+      f(m);
+      m.promotion_piece_type_ = move::promotion_piece_type::QUEEN;
+      f(m);
+    } else {
+      f(m);
+    }
+  };
+
   auto pawns = moving_player[PAWN];
-  auto second_rank_pawns = second_rank[p.to_move_] & pawns;
   while (pawns != 0U) {
     auto const pawn = bitboard{1U} << bitboard{cista::trailing_zeros(pawns)};
-    pawns = second_rank_pawns & ~pawn;
+    pawns = pawns & ~pawn;
 
     auto const occupied_squares = own_pieces | opposing_pieces;
     auto const single_jump_destination =
         p.to_move_ == color::WHITE ? pawn >> 8 : pawn << 8;
     if ((single_jump_destination & occupied_squares) == 0U) {
-      f(move{pawn, single_jump_destination});
+      move_with_promotion_check(move{pawn, single_jump_destination});
     }
 
     auto const double_jump_destination =
@@ -78,14 +99,14 @@ void for_each_possible_move(position const& p, Fn&& f) {
         p.to_move_ == color::WHITE ? pawn >> 7 : pawn << 9;
     if (right_capture & (opposing_pieces | p.en_passant_) &
         ~full_file_bitboard(FA)) {
-      f(move{pawn, right_capture});
+      move_with_promotion_check(move{pawn, right_capture});
     }
 
     auto const left_capture =
         p.to_move_ == color::WHITE ? pawn >> 9 : pawn << 7;
     if (left_capture & (opposing_pieces | p.en_passant_) &
         ~full_file_bitboard(FH)) {
-      f(move{pawn, left_capture});
+      move_with_promotion_check(move{pawn, left_capture});
     }
   }
 }
