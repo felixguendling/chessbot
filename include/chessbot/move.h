@@ -60,7 +60,8 @@ void for_each_possible_move(position const& p, Fn&& f) {
                                opposing_player[QUEEN] | opposing_player[KING];
 
   auto const move_with_promotion_check = [&](move m) {
-    if (m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
+    if (m.from() & moving_player[PAWN] &&
+        m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
       m.special_move_ = move::special_move::PROMOTION;
       m.promotion_piece_type_ = move::promotion_piece_type::KNIGHT;
       f(m);
