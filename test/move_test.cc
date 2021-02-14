@@ -190,14 +190,14 @@ TEST_CASE("en passant white") {
                               "8/8/8/4p3/8/8/8/8 w - e6 0 2"});
 }
 
-TEST_CASE("white pawn moves") {
+TEST_CASE("white pawn moves blocked") {
   auto in = std::stringstream{"8/8/8/8/6p1/6Pp/p6P/8 w - - 0 1"};
   chessbot::position p;
   in >> p;
   CHECK(print_all_positions_after_move(p).empty());
 }
 
-TEST_CASE("black pawn moves") {
+TEST_CASE("black pawn moves blocked") {
   auto in = std::stringstream{"8/p7/P7/8/8/8/8/8 b - - 0 1"};
   chessbot::position p;
   in >> p;
@@ -215,4 +215,56 @@ TEST_CASE("white pawn promotion") {
             "5R2/8/8/8/8/8/8/8 b - - 0 1", "5Q2/8/8/8/8/8/8/8 b - - 0 1",
             "4Nq2/8/8/8/8/8/8/8 b - - 0 1", "4Bq2/8/8/8/8/8/8/8 b - - 0 1",
             "4Rq2/8/8/8/8/8/8/8 b - - 0 1", "4Qq2/8/8/8/8/8/8/8 b - - 0 1"});
+}
+
+TEST_CASE("white pawn promotion") {
+  auto in = std::stringstream{"8/8/8/8/8/8/4p3/5Q2 b - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{
+            "8/8/8/8/8/8/8/5n2 w - - 0 2", "8/8/8/8/8/8/8/5b2 w - - 0 2",
+            "8/8/8/8/8/8/8/5r2 w - - 0 2", "8/8/8/8/8/8/8/5q2 w - - 0 2",
+            "8/8/8/8/8/8/8/4nQ2 w - - 0 2", "8/8/8/8/8/8/8/4bQ2 w - - 0 2",
+            "8/8/8/8/8/8/8/4rQ2 w - - 0 2", "8/8/8/8/8/8/8/4qQ2 w - - 0 2"});
+}
+
+TEST_CASE("knight move") {
+  auto in = std::stringstream{"N6N/8/8/8/8/8/8/N6N w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{
+            "7N/2N5/8/8/8/8/8/N6N b - - 0 1", "7N/8/1N6/8/8/8/8/N6N b - - 0 1",
+            "N7/5N2/8/8/8/8/8/N6N b - - 0 1", "N7/8/6N1/8/8/8/8/N6N b - - 0 1",
+            "N6N/8/8/8/8/8/2N5/7N b - - 0 1", "N6N/8/8/8/8/1N6/8/7N b - - 0 1",
+            "N6N/8/8/8/8/8/5N2/N7 b - - 0 1",
+            "N6N/8/8/8/8/6N1/8/N7 b - - 0 1"});
+}
+
+TEST_CASE("knight move blocked") {
+  auto in = std::stringstream{"N1q4N/2P5/8/8/8/8/8/N6N w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"2q4N/2P5/1N6/8/8/8/8/N6N b - - 0 1",
+                              "N1q5/2P2N2/8/8/8/8/8/N6N b - - 0 1",
+                              "N1q5/2P5/6N1/8/8/8/8/N6N b - - 0 1",
+                              "N1q4N/2P5/8/8/8/8/2N5/7N b - - 0 1",
+                              "N1q4N/2P5/8/8/8/1N6/8/7N b - - 0 1",
+                              "N1q4N/2P5/8/8/8/8/5N2/N7 b - - 0 1",
+                              "N1q4N/2P5/8/8/8/6N1/8/N7 b - - 0 1"});
+}
+
+TEST_CASE("knight move capture") {
+  auto in = std::stringstream{"N7/2p5/8/8/8/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"8/2p5/1N6/8/8/8/8/8 b - - 0 1",
+                              "8/2N5/8/8/8/8/8/8 b - - 0 1"});
 }

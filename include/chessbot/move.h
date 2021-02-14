@@ -49,6 +49,31 @@ inline constexpr bitboard full_file_bitboard(unsigned i) {
 constexpr auto const second_rank =
     std::array<bitboard, 2>{full_rank_bitboard(R2), full_rank_bitboard(R7)};
 
+inline bitboard north_west(bitboard const bb, int const north, int const west) {
+  auto const shift = north * 8 + west;
+  return (shift < 0) ? bb << (-shift) : bb >> shift;
+}
+
+inline bitboard safe_north_west(bitboard const bb, int const north,
+                                int const west) {
+  auto const result = north_west(bb, north, west);
+
+  auto const prev_id = cista::trailing_zeros(bb);
+  auto const prev_file = prev_id % 8;
+  auto const prev_rank = prev_id / 8;
+
+  auto const id = cista::trailing_zeros(result);
+  auto const file = id % 8;
+  auto const rank = id / 8;
+
+  if (north > 0 && prev_rank <= rank || north < 0 && prev_rank >= rank ||
+      west > 0 && prev_file <= file || west < 0 && prev_file >= file) {
+    return 0U;
+  } else {
+    return result;
+  }
+}
+
 template <typename Fn>
 void for_each_possible_move(position const& p, Fn&& f) {
   auto const* const moving_player =
@@ -91,8 +116,9 @@ void for_each_possible_move(position const& p, Fn&& f) {
       move_pawn_with_promotion_check(move{pawn, single_jump_destination});
     }
 
-    auto const double_jump_destination =
-        p.to_move_ == color::WHITE ? pawn >> 16 : pawn << 16;
+    auto const double_jump_destination = p.to_move_ == color::WHITE
+                                             ? north_west(pawn, 2, 0)
+                                             : north_west(pawn, -2, 0);
     if (((pawn & second_rank[p.to_move_]) != 0U) &&
         (single_jump_destination & occupied_squares) == 0U &&
         (double_jump_destination & occupied_squares) == 0U) {
@@ -111,6 +137,23 @@ void for_each_possible_move(position const& p, Fn&& f) {
     if (left_capture & (opposing_pieces | p.en_passant_) &
         ~full_file_bitboard(FH)) {
       move_pawn_with_promotion_check(move{pawn, left_capture});
+    }
+  }
+
+  auto knights = moving_player[KNIGHT];
+  while (knights != 0U) {
+    auto const knight = bitboard{1U}
+                        << bitboard{cista::trailing_zeros(knights)};
+    knights = knights & ~knight;
+
+    for (auto const target :
+         {safe_north_west(knight, 2, 1), safe_north_west(knight, 2, -1),
+          safe_north_west(knight, -2, 1), safe_north_west(knight, -2, -1),
+          safe_north_west(knight, 1, -2), safe_north_west(knight, 1, 2),
+          safe_north_west(knight, -1, 2), safe_north_west(knight, -1, -2)}) {
+      if (target != 0U && (target & own_pieces) == 0U) {
+        f(move{knight, target});
+      }
     }
   }
 }
