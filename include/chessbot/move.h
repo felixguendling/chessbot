@@ -19,13 +19,17 @@ struct move {
 
   uint16_t from_field_ : 6;
   uint16_t to_field_ : 6;
-  enum class promotion_piece_type {
+  enum class promotion_piece_type : uint16_t {
     KNIGHT,
     BISHOP,
     ROOK,
     QUEEN
   } promotion_piece_type_ : 2;
-  enum class special_move { NONE, PROMOTION, CASTLE } special_move_ : 2;
+  enum class special_move : uint16_t {
+    NONE,
+    PROMOTION,
+    CASTLE
+  } special_move_ : 2;
 };
 
 inline constexpr bitboard full_rank_bitboard(unsigned i) {
@@ -59,9 +63,8 @@ void for_each_possible_move(position const& p, Fn&& f) {
                                opposing_player[BISHOP] | opposing_player[ROOK] |
                                opposing_player[QUEEN] | opposing_player[KING];
 
-  auto const move_with_promotion_check = [&](move m) {
-    if (m.from() & moving_player[PAWN] &&
-        m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
+  auto const move_pawn_with_promotion_check = [&](move m) {
+    if (m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
       m.special_move_ = move::special_move::PROMOTION;
       m.promotion_piece_type_ = move::promotion_piece_type::KNIGHT;
       f(m);
@@ -85,7 +88,7 @@ void for_each_possible_move(position const& p, Fn&& f) {
     auto const single_jump_destination =
         p.to_move_ == color::WHITE ? pawn >> 8 : pawn << 8;
     if ((single_jump_destination & occupied_squares) == 0U) {
-      move_with_promotion_check(move{pawn, single_jump_destination});
+      move_pawn_with_promotion_check(move{pawn, single_jump_destination});
     }
 
     auto const double_jump_destination =
@@ -100,14 +103,14 @@ void for_each_possible_move(position const& p, Fn&& f) {
         p.to_move_ == color::WHITE ? pawn >> 7 : pawn << 9;
     if (right_capture & (opposing_pieces | p.en_passant_) &
         ~full_file_bitboard(FA)) {
-      move_with_promotion_check(move{pawn, right_capture});
+      move_pawn_with_promotion_check(move{pawn, right_capture});
     }
 
     auto const left_capture =
         p.to_move_ == color::WHITE ? pawn >> 9 : pawn << 7;
     if (left_capture & (opposing_pieces | p.en_passant_) &
         ~full_file_bitboard(FH)) {
-      move_with_promotion_check(move{pawn, left_capture});
+      move_pawn_with_promotion_check(move{pawn, left_capture});
     }
   }
 }

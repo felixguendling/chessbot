@@ -277,8 +277,21 @@ position position::make_move(move const& m) const {
     next.en_passant_ = 0U;
   }
   if (m.special_move_ == move::special_move::PROMOTION) {
-    std::cout << "PROMOTION\n";
     next.get_pieces(next.to_move_)[PAWN] ^= to;
+    switch (m.promotion_piece_type_) {
+      case move::promotion_piece_type::QUEEN:
+        next.get_pieces(next.to_move_)[QUEEN] ^= to;
+        break;
+      case move::promotion_piece_type::ROOK:
+        next.get_pieces(next.to_move_)[ROOK] ^= to;
+        break;
+      case move::promotion_piece_type::BISHOP:
+        next.get_pieces(next.to_move_)[BISHOP] ^= to;
+        break;
+      case move::promotion_piece_type::KNIGHT:
+        next.get_pieces(next.to_move_)[KNIGHT] ^= to;
+        break;
+    }
   }
 
   if (next.to_move_ == BLACK) {

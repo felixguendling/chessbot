@@ -203,3 +203,16 @@ TEST_CASE("black pawn moves") {
   in >> p;
   CHECK(print_all_positions_after_move(p).empty());
 }
+
+TEST_CASE("white pawn promotion") {
+  auto in = std::stringstream{"5q2/4P3/8/8/8/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{
+            "5N2/8/8/8/8/8/8/8 b - - 0 1", "5B2/8/8/8/8/8/8/8 b - - 0 1",
+            "5R2/8/8/8/8/8/8/8 b - - 0 1", "5Q2/8/8/8/8/8/8/8 b - - 0 1",
+            "4Nq2/8/8/8/8/8/8/8 b - - 0 1", "4Bq2/8/8/8/8/8/8/8 b - - 0 1",
+            "4Rq2/8/8/8/8/8/8/8 b - - 0 1", "4Qq2/8/8/8/8/8/8/8 b - - 0 1"});
+}
