@@ -12,10 +12,6 @@ namespace chessbot {
 
 struct move;
 
-inline constexpr bitboard rank_file_to_bitboard(unsigned rank, unsigned file) {
-  return bitboard{1U} << bitboard{8U * rank + file};
-}
-
 struct position {
   friend std::ostream& operator<<(std::ostream&, position const&);
   friend std::istream& operator>>(std::istream&, position&);

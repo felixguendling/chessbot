@@ -9,4 +9,8 @@ std::string get_square_name(bitboard const b) {
   return {file_names[id % 8], rank_names[id / 8]};
 }
 
+bitboard rank_file_to_bitboard(rank r, file f) {
+  return bitboard{1} << ((8 - r) * 8 + f);
+}
+
 }  // namespace chessbot
