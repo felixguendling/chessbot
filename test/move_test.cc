@@ -268,3 +268,209 @@ TEST_CASE("knight move capture") {
         std::set<std::string>{"8/2p5/1N6/8/8/8/8/8 b - - 0 1",
                               "8/2N5/8/8/8/8/8/8 b - - 0 1"});
 }
+
+TEST_CASE("bishop moves") {
+  auto in = std::stringstream{"8/1p2p3/4P3/3B4/2p1p3/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"8/1B2p3/4P3/8/2p1p3/8/8/8 b - - 0 1",
+                              "8/1p2p3/4P3/8/2B1p3/8/8/8 b - - 0 1",
+                              "8/1p2p3/4P3/8/2p1B3/8/8/8 b - - 0 1",
+                              "8/1p2p3/2B1P3/8/2p1p3/8/8/8 b - - 0 1"});
+}
+
+TEST_CASE("rook moves") {
+  auto in = std::stringstream{"8/3p4/1p6/1P1R2p1/3p4/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"8/3p4/1p1R4/1P4p1/3p4/8/8/8 b - - 0 1",
+                              "8/3p4/1p6/1P4p1/3R4/8/8/8 b - - 0 1",
+                              "8/3R4/1p6/1P4p1/3p4/8/8/8 b - - 0 1",
+                              "8/3p4/1p6/1PR3p1/3p4/8/8/8 b - - 0 1",
+                              "8/3p4/1p6/1P2R1p1/3p4/8/8/8 b - - 0 1",
+                              "8/3p4/1p6/1P3Rp1/3p4/8/8/8 b - - 0 1",
+                              "8/3p4/1p6/1P4R1/3p4/8/8/8 b - - 0 1"});
+}
+
+TEST_CASE("rook moves edge") {
+  auto in = std::stringstream{"8/8/8/8/8/8/7p/5K1R w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{
+            // rook moves
+            "8/8/8/8/8/8/7R/5K2 b - - 0 1", "8/8/8/8/8/8/7p/5KR1 b - - 0 1",
+
+            // king moves
+            "8/8/8/8/8/8/7p/4K2R b - - 0 1", "8/8/8/8/8/8/7p/6KR b - - 0 1",
+            "8/8/8/8/8/8/5K1p/7R b - - 0 1", "8/8/8/8/8/8/4K2p/7R b - - 0 1",
+            "8/8/8/8/8/8/6Kp/7R b - - 0 1"});
+}
+
+TEST_CASE("queen moves") {
+  auto in = std::stringstream{"8/8/2p1p3/2PQp3/2ppp3/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"8/8/2p1p3/2P1Q3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2Q1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2p1Q3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2pQp3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1p3/2Qpp3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1p3/2ppQ3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1p3/2pQp3/8/8/8 b - - 0 1",
+                              "8/3Q4/2p1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "3Q4/8/2p1p3/2P1p3/2ppp3/8/8/8 b - - 0 1"});
+}
+
+TEST_CASE("king moves") {
+  auto in = std::stringstream{"8/8/2p1p3/2PKp3/2ppp3/8/8/8 w - - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{
+            "8/8/2p1p3/2P1K3/2ppp3/8/8/8 b - - 0 1",
+            "8/8/2K1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+            "8/8/2p1K3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+            "8/8/2pKp3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+            "8/8/2p1p3/2P1p3/2Kpp3/8/8/8 b - - 0 1",
+            "8/8/2p1p3/2P1p3/2ppK3/8/8/8 b - - 0 1",
+            "8/8/2p1p3/2P1p3/2pKp3/8/8/8 b - - 0 1",
+        });
+}
+
+TEST_CASE("white castle") {
+  auto in = std::stringstream{"8/8/8/8/8/p2ppp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2ppP1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2pPp1p/P3PP1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2pPp1p/P2PP2P/R3K2R b KQkq - 0 1",
+
+                              // castle
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R4RK1 b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/2KR3R b kq - 0 1",
+
+                              // king moves
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R4K1R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R2K3R b kq - 0 1",
+
+                              // rook moves
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/1R2K2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/2R1K2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/3RK2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3K1R1 b Qkq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3KR2 b Qkq - 0 1"});
+}
+
+TEST_CASE("white cannot castle") {
+  auto in = std::stringstream{"8/8/8/8/8/p2ppp1p/P2PPP1P/R3K2R w kq - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b kq - 0 1",
+                              "8/8/8/8/8/p2ppP1p/P2P1P1P/R3K2R b kq - 0 1",
+                              "8/8/8/8/8/p2pPp1p/P3PP1P/R3K2R b kq - 0 1",
+                              "8/8/8/8/8/p2pPp1p/P2PP2P/R3K2R b kq - 0 1",
+
+                              // king moves
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R4K1R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R2K3R b kq - 0 1",
+
+                              // rook moves
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/1R2K2R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/2R1K2R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/3RK2R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3K1R1 b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3KR2 b kq - 0 1"});
+}
+
+TEST_CASE("white castle with b1 attack") {
+  auto in = std::stringstream{"8/8/8/8/8/n2ppp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/8/8/8/8/n2Ppp1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/n2ppP1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/n2pPp1p/P3PP1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/n2pPp1p/P2PP2P/R3K2R b KQkq - 0 1",
+
+                              // castle
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/R4RK1 b kq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/2KR3R b kq - 0 1",
+
+                              // king moves
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/R4K1R b kq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/R2K3R b kq - 0 1",
+
+                              // rook moves
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/1R2K2R b Kkq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/2R1K2R b Kkq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/3RK2R b Kkq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/R3K1R1 b Qkq - 0 1",
+                              "8/8/8/8/8/n2ppp1p/P2PPP1P/R3KR2 b Qkq - 0 1"});
+}
+
+TEST_CASE("white cannot castle with attack and block") {
+  auto in =
+      std::stringstream{"8/2r5/8/8/8/n2ppp1p/P2PPP1P/R3Kn1R w KQkq - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/2r5/8/8/8/n2Ppp1p/P2P1P1P/R3Kn1R b KQkq - 0 1",
+                              "8/2r5/8/8/8/n2ppP1p/P2P1P1P/R3Kn1R b KQkq - 0 1",
+                              "8/2r5/8/8/8/n2pPp1p/P3PP1P/R3Kn1R b KQkq - 0 1",
+                              "8/2r5/8/8/8/n2pPp1p/P2PP2P/R3Kn1R b KQkq - 0 1",
+
+                              // king moves
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/R4K1R b kq - 0 1",
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/R2K1n1R b kq - 0 1",
+
+                              // rook moves
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/1R2Kn1R b Kkq - 0 1",
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/2R1Kn1R b Kkq - 0 1",
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/3RKn1R b Kkq - 0 1",
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/R3KnR1 b Qkq - 0 1",
+                              "8/2r5/8/8/8/n2ppp1p/P2PPP1P/R3KR2 b Qkq - 0 1"});
+}
+
+TEST_CASE("white cannot castle knight attack") {
+  auto in = std::stringstream{"8/8/8/8/8/p2npp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
+  chessbot::position p;
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2npP1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2nPp1p/P3PP1P/R3K2R b KQkq - 0 1",
+                              "8/8/8/8/8/p2nPp1p/P2PP2P/R3K2R b KQkq - 0 1",
+
+                              // king moves
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/R4K1R b kq - 0 1",
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/R2K3R b kq - 0 1",
+
+                              // rook moves
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/1R2K2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/2R1K2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/3RK2R b Kkq - 0 1",
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/R3K1R1 b Qkq - 0 1",
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/R3KR2 b Qkq - 0 1"});
+}

@@ -28,10 +28,10 @@ TEST_CASE("print start position") {
 
   CHECK(p.to_fen() == std::string{start_position_fen});
   CHECK(p.to_move_ == chessbot::color::WHITE);
-  CHECK(p.white_can_short_castle_ == true);
-  CHECK(p.white_can_long_castle_ == true);
-  CHECK(p.black_can_short_castle_ == true);
-  CHECK(p.black_can_long_castle_ == true);
+  CHECK(p.castling_rights_.white_can_short_castle_ == true);
+  CHECK(p.castling_rights_.white_can_long_castle_ == true);
+  CHECK(p.castling_rights_.black_can_short_castle_ == true);
+  CHECK(p.castling_rights_.black_can_long_castle_ == true);
   CHECK(p.en_passant_ == 0U);
   CHECK(p.half_move_clock_ == 0U);
   CHECK(p.full_move_count_ == 1U);
@@ -62,10 +62,10 @@ TEST_CASE("print two kings position") {
 
   CHECK(p.to_fen() == std::string{position_fen});
   CHECK(p.to_move_ == chessbot::color::WHITE);
-  CHECK(p.white_can_short_castle_ == false);
-  CHECK(p.white_can_long_castle_ == true);
-  CHECK(p.black_can_short_castle_ == false);
-  CHECK(p.black_can_long_castle_ == true);
+  CHECK(p.castling_rights_.white_can_short_castle_ == false);
+  CHECK(p.castling_rights_.white_can_long_castle_ == true);
+  CHECK(p.castling_rights_.black_can_short_castle_ == false);
+  CHECK(p.castling_rights_.black_can_long_castle_ == true);
   CHECK(p.en_passant_ == 0U);
   CHECK(p.half_move_clock_ == 5U);
   CHECK(p.full_move_count_ == 33U);
@@ -96,10 +96,10 @@ TEST_CASE("print random position") {
 
   CHECK(p.to_fen() == std::string{position_fen});
   CHECK(p.to_move_ == chessbot::color::WHITE);
-  CHECK(p.white_can_short_castle_ == false);
-  CHECK(p.white_can_long_castle_ == false);
-  CHECK(p.black_can_short_castle_ == false);
-  CHECK(p.black_can_long_castle_ == false);
+  CHECK(p.castling_rights_.white_can_short_castle_ == false);
+  CHECK(p.castling_rights_.white_can_long_castle_ == false);
+  CHECK(p.castling_rights_.black_can_short_castle_ == false);
+  CHECK(p.castling_rights_.black_can_long_castle_ == false);
   CHECK(p.en_passant_ == chessbot::rank_file_to_bitboard(2, 0));
   CHECK(p.half_move_clock_ == 5U);
   CHECK(p.full_move_count_ == 33U);

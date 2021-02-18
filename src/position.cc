@@ -48,20 +48,22 @@ std::string position::to_fen() const {
 
   ss << ' ' << (to_move_ == color::WHITE ? 'w' : 'b') << ' ';
 
-  if (!white_can_short_castle_ && !white_can_long_castle_ &&
-      !black_can_short_castle_ && !black_can_long_castle_) {
+  if (!castling_rights_.white_can_short_castle_ &&
+      !castling_rights_.white_can_long_castle_ &&
+      !castling_rights_.black_can_short_castle_ &&
+      !castling_rights_.black_can_long_castle_) {
     ss << '-';
   } else {
-    if (white_can_short_castle_) {
+    if (castling_rights_.white_can_short_castle_) {
       ss << 'K';
     }
-    if (white_can_long_castle_) {
+    if (castling_rights_.white_can_long_castle_) {
       ss << 'Q';
     }
-    if (black_can_short_castle_) {
+    if (castling_rights_.black_can_short_castle_) {
       ss << 'k';
     }
-    if (black_can_long_castle_) {
+    if (castling_rights_.black_can_long_castle_) {
       ss << 'q';
     }
   }
@@ -150,10 +152,10 @@ std::istream& operator>>(std::istream& in, position& p) {
     p.piece_states_[(!is_white * NUM_PIECE_TYPES) + index] ^= mask;
   };
 
-  p.white_can_short_castle_ = false;
-  p.white_can_long_castle_ = false;
-  p.black_can_short_castle_ = false;
-  p.black_can_long_castle_ = false;
+  p.castling_rights_.white_can_short_castle_ = false;
+  p.castling_rights_.white_can_long_castle_ = false;
+  p.castling_rights_.black_can_short_castle_ = false;
+  p.castling_rights_.black_can_long_castle_ = false;
 
   auto c = char{};
   auto castling_first_space_read = false;
@@ -206,10 +208,10 @@ std::istream& operator>>(std::istream& in, position& p) {
             }
             break;
           case '-': state = EN_PASSANT; break;
-          case 'K': p.white_can_short_castle_ = true; break;
-          case 'Q': p.white_can_long_castle_ = true; break;
-          case 'k': p.black_can_short_castle_ = true; break;
-          case 'q': p.black_can_long_castle_ = true; break;
+          case 'K': p.castling_rights_.white_can_short_castle_ = true; break;
+          case 'Q': p.castling_rights_.white_can_long_castle_ = true; break;
+          case 'k': p.castling_rights_.black_can_short_castle_ = true; break;
+          case 'q': p.castling_rights_.black_can_long_castle_ = true; break;
           default: utl::verify(false, "invalid castling {}", c); break;
         }
         break;
@@ -250,47 +252,102 @@ position position::make_move(move const& m) const {
   auto const from = m.from();
   auto const to = m.to();
 
-  for (auto& pieces : next.get_pieces(next.to_move_)) {
-    if ((pieces & from) != 0U) {
-      pieces ^= (from | to);
-      break;
+  if (m.special_move_ == move::special_move::CASTLE) {
+    auto const active_player_first_rank =
+        next.to_move_ == color::WHITE ? R1 : R8;
+    next.get_pieces(next.to_move_)[KING] ^= from;
+    next.get_pieces(next.to_move_)[ROOK] ^= to;
+    if (to == rank_file_to_bitboard(active_player_first_rank, FA)) {
+      next.get_pieces(next.to_move_)[KING] ^=
+          rank_file_to_bitboard(active_player_first_rank, FC);
+      next.get_pieces(next.to_move_)[ROOK] ^=
+          rank_file_to_bitboard(active_player_first_rank, FD);
+    } else {
+      next.get_pieces(next.to_move_)[KING] ^=
+          rank_file_to_bitboard(active_player_first_rank, FG);
+      next.get_pieces(next.to_move_)[ROOK] ^=
+          rank_file_to_bitboard(active_player_first_rank, FF);
     }
-  }
-  for (auto& pieces : next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)) {
-    if (pieces & to) {
-      pieces ^= to;
-      break;
+
+    if (next.to_move_ == color::WHITE) {
+      next.castling_rights_.white_can_short_castle_ = false;
+      next.castling_rights_.white_can_long_castle_ = false;
+    } else {
+      next.castling_rights_.black_can_short_castle_ = false;
+      next.castling_rights_.black_can_long_castle_ = false;
     }
-  }
-  if (next.en_passant_ & to & next.get_pieces(next.to_move_)[PAWN]) {
-    auto const en_passant_capture_field = next.to_move_ == WHITE
-                                              ? next.en_passant_ << bitboard{8}
-                                              : next.en_passant_ >> bitboard{8};
-    next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)[PAWN] &=
-        ~en_passant_capture_field;
-  }
-  if ((to & next.get_pieces(next.to_move_)[PAWN]) != 0U &&
-      std::abs(static_cast<int>(cista::trailing_zeros(from)) -
-               static_cast<int>(cista::trailing_zeros(to))) == 16) {
-    next.en_passant_ = next.to_move_ == WHITE ? (from >> 8) : (from << 8);
   } else {
-    next.en_passant_ = 0U;
-  }
-  if (m.special_move_ == move::special_move::PROMOTION) {
-    next.get_pieces(next.to_move_)[PAWN] ^= to;
-    switch (m.promotion_piece_type_) {
-      case move::promotion_piece_type::QUEEN:
-        next.get_pieces(next.to_move_)[QUEEN] ^= to;
+    for (auto& pieces : next.get_pieces(next.to_move_)) {
+      if ((pieces & from) != 0U) {
+        pieces ^= (from | to);
         break;
-      case move::promotion_piece_type::ROOK:
-        next.get_pieces(next.to_move_)[ROOK] ^= to;
+      }
+    }
+    for (auto& pieces :
+         next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)) {
+      if (pieces & to) {
+        pieces ^= to;
         break;
-      case move::promotion_piece_type::BISHOP:
-        next.get_pieces(next.to_move_)[BISHOP] ^= to;
-        break;
-      case move::promotion_piece_type::KNIGHT:
-        next.get_pieces(next.to_move_)[KNIGHT] ^= to;
-        break;
+      }
+    }
+
+    if (next.en_passant_ & to & next.get_pieces(next.to_move_)[PAWN]) {
+      auto const en_passant_capture_field =
+          next.to_move_ == WHITE ? next.en_passant_ << bitboard{8}
+                                 : next.en_passant_ >> bitboard{8};
+      next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)[PAWN] &=
+          ~en_passant_capture_field;
+    }
+
+    if ((to & next.get_pieces(next.to_move_)[PAWN]) != 0U &&
+        std::abs(static_cast<int>(cista::trailing_zeros(from)) -
+                 static_cast<int>(cista::trailing_zeros(to))) == 16) {
+      next.en_passant_ = next.to_move_ == WHITE ? (from >> 8) : (from << 8);
+    } else {
+      next.en_passant_ = 0U;
+    }
+
+    if (m.special_move_ == move::special_move::PROMOTION) {
+      next.get_pieces(next.to_move_)[PAWN] ^= to;
+      switch (m.promotion_piece_type_) {
+        case move::promotion_piece_type::QUEEN:
+          next.get_pieces(next.to_move_)[QUEEN] ^= to;
+          break;
+        case move::promotion_piece_type::ROOK:
+          next.get_pieces(next.to_move_)[ROOK] ^= to;
+          break;
+        case move::promotion_piece_type::BISHOP:
+          next.get_pieces(next.to_move_)[BISHOP] ^= to;
+          break;
+        case move::promotion_piece_type::KNIGHT:
+          next.get_pieces(next.to_move_)[KNIGHT] ^= to;
+          break;
+      }
+    }
+
+    if (to & next.get_pieces(next.to_move_)[ROOK]) {
+      if (from & rank_file_to_bitboard(R1, FA)) {
+        next.castling_rights_.white_can_long_castle_ = false;
+      }
+      if (from & rank_file_to_bitboard(R1, FH)) {
+        next.castling_rights_.white_can_short_castle_ = false;
+      }
+      if (from & rank_file_to_bitboard(R8, FA)) {
+        next.castling_rights_.black_can_long_castle_ = false;
+      }
+      if (from & rank_file_to_bitboard(R8, FH)) {
+        next.castling_rights_.black_can_short_castle_ = false;
+      }
+    }
+
+    if (to & next.get_pieces(next.to_move_)[KING]) {
+      if (next.to_move_ == color::WHITE) {
+        next.castling_rights_.white_can_long_castle_ = false;
+        next.castling_rights_.white_can_short_castle_ = false;
+      } else {
+        next.castling_rights_.black_can_long_castle_ = false;
+        next.castling_rights_.black_can_short_castle_ = false;
+      }
     }
   }
 

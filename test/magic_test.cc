@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 
+#include "chessbot/magic.h"
 #include "chessbot/move.h"
 #include "chessbot/position.h"
 
@@ -82,12 +83,10 @@ TEST_CASE("rook attack squares blocked") {
   auto const occupancy =
       rank_file_to_bitboard(R5, FE) | rank_file_to_bitboard(R4, FC) |
       rank_file_to_bitboard(R4, FF) | rank_file_to_bitboard(R3, FE);
-  auto const matches =
-      magic_rook_attack_squares[square_idx]
-                               [(rook_square_magic_numbers[square_idx] *
-                                 occupancy) >>
-                                (64 - magic_number_num_bits)] ==
-      (rank_file_to_bitboard(R4, FD) | occupancy);
+  auto const magic_index =
+      get_magic_index(occupancy, rook_square_magic_numbers[square_idx]);
+  auto const matches = magic_rook_attack_squares[square_idx][magic_index] ==
+                       (rank_file_to_bitboard(R4, FD) | occupancy);
   CHECK(matches);
 }
 
@@ -96,11 +95,9 @@ TEST_CASE("bishop attack squares blocked") {
   auto const occupancy =
       rank_file_to_bitboard(R5, FF) | rank_file_to_bitboard(R5, FD) |
       rank_file_to_bitboard(R3, FD) | rank_file_to_bitboard(R2, FG);
-  auto const matches =
-      magic_bishop_attack_squares[square_idx]
-                                 [(bishop_square_magic_numbers[square_idx] *
-                                   occupancy) >>
-                                  (64 - magic_number_num_bits)] ==
-      (rank_file_to_bitboard(R3, FF) | occupancy);
+  auto const magic_index =
+      get_magic_index(occupancy, bishop_square_magic_numbers[square_idx]);
+  auto const matches = magic_bishop_attack_squares[square_idx][magic_index] ==
+                       (rank_file_to_bitboard(R3, FF) | occupancy);
   CHECK(matches);
 }
