@@ -108,3 +108,14 @@ TEST_CASE("print random position") {
   ss << p;
   CHECK(ss.str() == position);
 }
+
+TEST_CASE("fen output") {
+  constexpr auto const start_position_fen =
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  auto in = std::stringstream{start_position_fen};
+
+  auto p = chessbot::position{};
+  in >> p;
+
+  CHECK(p.to_fen() == start_position_fen);
+}

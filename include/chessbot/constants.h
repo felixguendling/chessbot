@@ -94,6 +94,22 @@ constexpr auto const long_castle_knight_attack_squares =
                    rank_file{R7, FB}, rank_file{R7, FC}, rank_file{R7, FE},
                    rank_file{R7, FE}, rank_file{R7, FF}, rank_file{R7, FG})};
 
+constexpr auto const short_castle_pawn_king_attack_squares =
+    std::array{multi_rank_file_to_bitboard(rank_file(R2, FH), rank_file(R2, FG),
+                                           rank_file(R2, FF), rank_file(R2, FE),
+                                           rank_file(R2, FD)),
+               multi_rank_file_to_bitboard(rank_file(R7, FH), rank_file(R7, FG),
+                                           rank_file(R7, FF), rank_file(R7, FE),
+                                           rank_file(R7, FD))};
+
+constexpr auto const long_castle_pawn_king_attack_squares =
+    std::array{multi_rank_file_to_bitboard(rank_file(R2, FB), rank_file(R2, FC),
+                                           rank_file(R2, FF), rank_file(R2, FE),
+                                           rank_file(R2, FD)),
+               multi_rank_file_to_bitboard(rank_file(R7, FB), rank_file(R7, FC),
+                                           rank_file(R7, FF), rank_file(R7, FE),
+                                           rank_file(R7, FD))};
+
 constexpr auto const short_castle_king_traversal_squares = std::array{
     std::array{rank_file_to_bitboard(R1, FE), rank_file_to_bitboard(R1, FF),
                rank_file_to_bitboard(R1, FG)},

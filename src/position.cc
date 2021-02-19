@@ -20,14 +20,16 @@ std::string position::to_fen() const {
   for (auto rank = 0U; rank != 8; ++rank) {
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
-      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
-        if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
+      auto const square_bb = rank_file_to_bitboard(rank, file);
+      for (auto const& [i, piece] : utl::enumerate(piece_statess_)) {
+        if ((square_bb & piece) != 0U) {
           if (empty_square_count != 0U) {
             ss << empty_square_count;
             empty_square_count = 0U;
           }
-          ss << (i < NUM_PIECE_TYPES ? white_pieces[i]
-                                     : black_pieces[i % NUM_PIECE_TYPES]);
+          ss << ((square_bb & pieces_by_color_[color::WHITE])
+                     ? white_pieces[i]
+                     : black_pieces[i % NUM_PIECE_TYPES]);
           empty = false;
         }
       }
@@ -81,15 +83,15 @@ void position::print() const {
     fmt::print("{}", 8 - rank);
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
-      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
-        if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
-          fmt::print(
-              fmt::emphasis::bold |
-                  (i < NUM_PIECE_TYPES ? fmt::fg(fmt::color::red)
-                                       : fmt::fg(fmt::color::blue)) |
-                  fmt::bg(white ? fmt::color::white : fmt::color::black),
-              "{}",
-              utf8_pieces[i < NUM_PIECE_TYPES ? 0 : 1][i % NUM_PIECE_TYPES]);
+      auto const square_bb = rank_file_to_bitboard(rank, file);
+      for (auto const& [i, piece] : utl::enumerate(piece_statess_)) {
+        auto const is_white = square_bb & pieces_by_color_[color::WHITE];
+        if ((square_bb & piece) != 0U) {
+          fmt::print(fmt::emphasis::bold |
+                         (is_white ? fmt::fg(fmt::color::red)
+                                   : fmt::fg(fmt::color::blue)) |
+                         fmt::bg(white ? fmt::color::white : fmt::color::black),
+                     "{}", utf8_pieces[is_white ? 0 : 1][i]);
           empty = false;
         }
       }
@@ -113,10 +115,11 @@ std::ostream& operator<<(std::ostream& out, position const& p) {
     out << (8 - rank) << " |";
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
-      for (auto const& [i, piece] : utl::enumerate(p.piece_states_)) {
+      auto const square_bb = rank_file_to_bitboard(rank, file);
+      for (auto const& [i, piece] : utl::enumerate(p.piece_statess_)) {
+        auto const is_white = square_bb & p.pieces_by_color_[color::WHITE];
         if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
-          out << ' ' << (i < NUM_PIECE_TYPES ? 'w' : 'b')
-              << white_pieces[i % NUM_PIECE_TYPES];
+          out << ' ' << (is_white ? 'w' : 'b') << white_pieces[i];
           empty = false;
         }
       }
@@ -149,7 +152,8 @@ std::istream& operator>>(std::istream& in, position& p) {
     utl::verify(index != std::string_view::npos, "{} is not a valid piece",
                 input);
     auto const mask = rank_file_to_bitboard(rank, file);
-    p.piece_states_[(!is_white * NUM_PIECE_TYPES) + index] ^= mask;
+    p.toggle_pieces(static_cast<piece_type>(index),
+                    is_white ? color::WHITE : color::BLACK, mask);
   };
 
   p.castling_rights_.white_can_short_castle_ = false;
@@ -255,18 +259,18 @@ position position::make_move(move const& m) const {
   if (m.special_move_ == move::special_move::CASTLE) {
     auto const active_player_first_rank =
         next.to_move_ == color::WHITE ? R1 : R8;
-    next.get_pieces(next.to_move_)[KING] ^= from;
-    next.get_pieces(next.to_move_)[ROOK] ^= to;
+    next.toggle_pieces(KING, next.to_move_, from);
+    next.toggle_pieces(ROOK, next.to_move_, to);
     if (to == rank_file_to_bitboard(active_player_first_rank, FA)) {
-      next.get_pieces(next.to_move_)[KING] ^=
-          rank_file_to_bitboard(active_player_first_rank, FC);
-      next.get_pieces(next.to_move_)[ROOK] ^=
-          rank_file_to_bitboard(active_player_first_rank, FD);
+      next.toggle_pieces(KING, next.to_move_,
+                         rank_file_to_bitboard(active_player_first_rank, FC));
+      next.toggle_pieces(ROOK, next.to_move_,
+                         rank_file_to_bitboard(active_player_first_rank, FD));
     } else {
-      next.get_pieces(next.to_move_)[KING] ^=
-          rank_file_to_bitboard(active_player_first_rank, FG);
-      next.get_pieces(next.to_move_)[ROOK] ^=
-          rank_file_to_bitboard(active_player_first_rank, FF);
+      next.toggle_pieces(KING, next.to_move_,
+                         rank_file_to_bitboard(active_player_first_rank, FG));
+      next.toggle_pieces(ROOK, next.to_move_,
+                         rank_file_to_bitboard(active_player_first_rank, FF));
     }
 
     if (next.to_move_ == color::WHITE) {
@@ -277,29 +281,30 @@ position position::make_move(move const& m) const {
       next.castling_rights_.black_can_long_castle_ = false;
     }
   } else {
-    for (auto& pieces : next.get_pieces(next.to_move_)) {
-      if ((pieces & from) != 0U) {
+    for (auto& pieces : next.piece_statess_) {
+      if (pieces & to) {
+        pieces ^= to;
+        next.pieces_by_color_[next.opposing_color()] ^= to;
+        break;
+      }
+    }
+    for (auto& pieces : next.piece_statess_) {
+      if ((pieces & next.pieces_by_color_[next.to_move_] & from) != 0U) {
+        next.pieces_by_color_[next.to_move_] ^= (from | to);
         pieces ^= (from | to);
         break;
       }
     }
-    for (auto& pieces :
-         next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)) {
-      if (pieces & to) {
-        pieces ^= to;
-        break;
-      }
-    }
 
-    if (next.en_passant_ & to & next.get_pieces(next.to_move_)[PAWN]) {
+    if (next.en_passant_ & to & next.piece_statess_[PAWN]) {
       auto const en_passant_capture_field =
           next.to_move_ == WHITE ? next.en_passant_ << bitboard{8}
                                  : next.en_passant_ >> bitboard{8};
-      next.get_pieces(next.to_move_ == WHITE ? BLACK : WHITE)[PAWN] &=
-          ~en_passant_capture_field;
+      next.toggle_pieces(PAWN, next.to_move_ == WHITE ? BLACK : WHITE,
+                         en_passant_capture_field);
     }
 
-    if ((to & next.get_pieces(next.to_move_)[PAWN]) != 0U &&
+    if ((to & next.pieces(next.to_move_, PAWN)) != 0U &&
         std::abs(static_cast<int>(cista::trailing_zeros(from)) -
                  static_cast<int>(cista::trailing_zeros(to))) == 16) {
       next.en_passant_ = next.to_move_ == WHITE ? (from >> 8) : (from << 8);
@@ -308,24 +313,24 @@ position position::make_move(move const& m) const {
     }
 
     if (m.special_move_ == move::special_move::PROMOTION) {
-      next.get_pieces(next.to_move_)[PAWN] ^= to;
+      next.toggle_pieces(PAWN, next.to_move_, to);
       switch (m.promotion_piece_type_) {
         case move::promotion_piece_type::QUEEN:
-          next.get_pieces(next.to_move_)[QUEEN] ^= to;
+          next.toggle_pieces(QUEEN, next.to_move_, to);
           break;
         case move::promotion_piece_type::ROOK:
-          next.get_pieces(next.to_move_)[ROOK] ^= to;
+          next.toggle_pieces(ROOK, next.to_move_, to);
           break;
         case move::promotion_piece_type::BISHOP:
-          next.get_pieces(next.to_move_)[BISHOP] ^= to;
+          next.toggle_pieces(BISHOP, next.to_move_, to);
           break;
         case move::promotion_piece_type::KNIGHT:
-          next.get_pieces(next.to_move_)[KNIGHT] ^= to;
+          next.toggle_pieces(KNIGHT, next.to_move_, to);
           break;
       }
     }
 
-    if (to & next.get_pieces(next.to_move_)[ROOK]) {
+    if (to & next.pieces(next.to_move_, ROOK)) {
       if (from & rank_file_to_bitboard(R1, FA)) {
         next.castling_rights_.white_can_long_castle_ = false;
       }
@@ -340,7 +345,7 @@ position position::make_move(move const& m) const {
       }
     }
 
-    if (to & next.get_pieces(next.to_move_)[KING]) {
+    if (to & next.pieces(next.to_move_, KING)) {
       if (next.to_move_ == color::WHITE) {
         next.castling_rights_.white_can_long_castle_ = false;
         next.castling_rights_.white_can_short_castle_ = false;

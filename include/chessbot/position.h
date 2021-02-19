@@ -21,11 +21,18 @@ struct position {
   std::string to_str() const;
   std::string to_fen() const;
 
-  std::span<bitboard> get_pieces(color c) {
-    return c == color::WHITE
-               ? std::span<bitboard>{&piece_states_[0], NUM_PIECE_TYPES}
-               : std::span<bitboard>{&piece_states_[NUM_PIECE_TYPES],
-                                     NUM_PIECE_TYPES};
+  color opposing_color() const {
+    return to_move_ == color::WHITE ? color::BLACK : color::WHITE;
+  }
+
+  bitboard pieces(color const c, piece_type const pt) const {
+    return piece_statess_[pt] & pieces_by_color_[c];
+  }
+
+  void toggle_pieces(piece_type const pt, color const c,
+                     bitboard const toggle) {
+    pieces_by_color_[c] ^= toggle;
+    piece_statess_[pt] ^= toggle;
   }
 
   bool can_short_castle(color const c) const {
@@ -38,7 +45,8 @@ struct position {
                              : castling_rights_.black_can_long_castle_;
   }
 
-  std::array<bitboard, NUM_PIECE_TYPES * 2> piece_states_{};
+  std::array<bitboard, NUM_PIECE_TYPES> piece_statess_{};
+  std::array<bitboard, 2> pieces_by_color_{};
   bitboard en_passant_{0U};
   unsigned half_move_clock_{0U};
   unsigned full_move_count_{0U};
