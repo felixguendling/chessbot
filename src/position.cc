@@ -252,11 +252,17 @@ std::string position::to_str() const {
 
 position position::make_move(move const& m) const {
   auto next = *this;
+  next.half_move_clock_++;
 
   auto const from = m.from();
   auto const to = m.to();
 
+  if (from & next.piece_statess_[PAWN]) {
+    next.half_move_clock_ = 0;
+  }
+
   if (m.special_move_ == move::special_move::CASTLE) {
+    next.half_move_clock_ = 0;
     auto const active_player_first_rank =
         next.to_move_ == color::WHITE ? R1 : R8;
     next.toggle_pieces(KING, next.to_move_, from);
@@ -283,6 +289,7 @@ position position::make_move(move const& m) const {
   } else {
     for (auto& pieces : next.piece_statess_) {
       if (pieces & to) {
+        next.half_move_clock_ = 0;
         pieces ^= to;
         next.pieces_by_color_[next.opposing_color()] ^= to;
         break;
@@ -332,24 +339,44 @@ position position::make_move(move const& m) const {
 
     if (to & next.pieces(next.to_move_, ROOK)) {
       if (from & rank_file_to_bitboard(R1, FA)) {
+        if (next.castling_rights_.white_can_long_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.white_can_long_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R1, FH)) {
+        if (next.castling_rights_.white_can_short_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.white_can_short_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R8, FA)) {
+        if (next.castling_rights_.black_can_long_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.black_can_long_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R8, FH)) {
+        if (next.castling_rights_.black_can_short_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.black_can_short_castle_ = false;
       }
     }
 
     if (to & next.pieces(next.to_move_, KING)) {
       if (next.to_move_ == color::WHITE) {
+        if (next.castling_rights_.white_can_short_castle_ ||
+            next.castling_rights_.white_can_long_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.white_can_long_castle_ = false;
         next.castling_rights_.white_can_short_castle_ = false;
       } else {
+        if (next.castling_rights_.black_can_short_castle_ ||
+            next.castling_rights_.black_can_long_castle_) {
+          next.half_move_clock_ = 0;
+        }
         next.castling_rights_.black_can_long_castle_ = false;
         next.castling_rights_.black_can_short_castle_ = false;
       }
@@ -361,7 +388,6 @@ position position::make_move(move const& m) const {
   }
 
   next.to_move_ = next.to_move_ == WHITE ? BLACK : WHITE;
-
   return next;
 }
 

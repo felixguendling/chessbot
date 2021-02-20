@@ -1,6 +1,7 @@
 #include "chessbot/magic.h"
 
 #include "chessbot/move.h"
+#include "chessbot/util.h"
 
 namespace chessbot {
 
@@ -40,22 +41,6 @@ std::array<bitboard, 64> rook_attack_bbs = []() {
   }
   return attacks;
 }();
-
-static uint64_t x = 123456789, y = 362436069, z = 521288629;
-uint64_t get_random_number() {
-  unsigned long t;
-
-  x ^= x << 16;
-  x ^= x >> 5;
-  x ^= x << 1;
-
-  t = x;
-  x = y;
-  y = z;
-  z = t ^ x ^ y;
-
-  return z;
-}
 
 std::array<int8_t, magic_number_num_bits> get_set_bit_indices(bitboard bb) {
   auto set_bit_indices = std::array<int8_t, magic_number_num_bits>{};

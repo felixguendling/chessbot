@@ -236,11 +236,11 @@ TEST_CASE("knight move") {
 
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{
-            "7N/2N5/8/8/8/8/8/N6N b - - 0 1", "7N/8/1N6/8/8/8/8/N6N b - - 0 1",
-            "N7/5N2/8/8/8/8/8/N6N b - - 0 1", "N7/8/6N1/8/8/8/8/N6N b - - 0 1",
-            "N6N/8/8/8/8/8/2N5/7N b - - 0 1", "N6N/8/8/8/8/1N6/8/7N b - - 0 1",
-            "N6N/8/8/8/8/8/5N2/N7 b - - 0 1",
-            "N6N/8/8/8/8/6N1/8/N7 b - - 0 1"});
+            "7N/2N5/8/8/8/8/8/N6N b - - 1 1", "7N/8/1N6/8/8/8/8/N6N b - - 1 1",
+            "N7/5N2/8/8/8/8/8/N6N b - - 1 1", "N7/8/6N1/8/8/8/8/N6N b - - 1 1",
+            "N6N/8/8/8/8/8/2N5/7N b - - 1 1", "N6N/8/8/8/8/1N6/8/7N b - - 1 1",
+            "N6N/8/8/8/8/8/5N2/N7 b - - 1 1",
+            "N6N/8/8/8/8/6N1/8/N7 b - - 1 1"});
 }
 
 TEST_CASE("knight move blocked") {
@@ -249,13 +249,13 @@ TEST_CASE("knight move blocked") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"2q4N/2P5/1N6/8/8/8/8/N6N b - - 0 1",
-                              "N1q5/2P2N2/8/8/8/8/8/N6N b - - 0 1",
-                              "N1q5/2P5/6N1/8/8/8/8/N6N b - - 0 1",
-                              "N1q4N/2P5/8/8/8/8/2N5/7N b - - 0 1",
-                              "N1q4N/2P5/8/8/8/1N6/8/7N b - - 0 1",
-                              "N1q4N/2P5/8/8/8/8/5N2/N7 b - - 0 1",
-                              "N1q4N/2P5/8/8/8/6N1/8/N7 b - - 0 1"});
+        std::set<std::string>{"2q4N/2P5/1N6/8/8/8/8/N6N b - - 1 1",
+                              "N1q5/2P2N2/8/8/8/8/8/N6N b - - 1 1",
+                              "N1q5/2P5/6N1/8/8/8/8/N6N b - - 1 1",
+                              "N1q4N/2P5/8/8/8/8/2N5/7N b - - 1 1",
+                              "N1q4N/2P5/8/8/8/1N6/8/7N b - - 1 1",
+                              "N1q4N/2P5/8/8/8/8/5N2/N7 b - - 1 1",
+                              "N1q4N/2P5/8/8/8/6N1/8/N7 b - - 1 1"});
 }
 
 TEST_CASE("knight move capture") {
@@ -264,7 +264,7 @@ TEST_CASE("knight move capture") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"8/2p5/1N6/8/8/8/8/8 b - - 0 1",
+        std::set<std::string>{"8/2p5/1N6/8/8/8/8/8 b - - 1 1",
                               "8/2N5/8/8/8/8/8/8 b - - 0 1"});
 }
 
@@ -274,10 +274,11 @@ TEST_CASE("bishop moves") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"8/1B2p3/4P3/8/2p1p3/8/8/8 b - - 0 1",
+        std::set<std::string>{"8/1p2p3/2B1P3/8/2p1p3/8/8/8 b - - 1 1",
+                              // captures
+                              "8/1B2p3/4P3/8/2p1p3/8/8/8 b - - 0 1",
                               "8/1p2p3/4P3/8/2B1p3/8/8/8 b - - 0 1",
-                              "8/1p2p3/4P3/8/2p1B3/8/8/8 b - - 0 1",
-                              "8/1p2p3/2B1P3/8/2p1p3/8/8/8 b - - 0 1"});
+                              "8/1p2p3/4P3/8/2p1B3/8/8/8 b - - 0 1"});
 }
 
 TEST_CASE("rook moves") {
@@ -286,13 +287,14 @@ TEST_CASE("rook moves") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"8/3p4/1p1R4/1P4p1/3p4/8/8/8 b - - 0 1",
+        std::set<std::string>{"8/3p4/1p6/1PR3p1/3p4/8/8/8 b - - 1 1",
+                              "8/3p4/1p6/1P2R1p1/3p4/8/8/8 b - - 1 1",
+                              "8/3p4/1p6/1P3Rp1/3p4/8/8/8 b - - 1 1",
+                              "8/3p4/1p1R4/1P4p1/3p4/8/8/8 b - - 1 1",
+                              // captures
+                              "8/3p4/1p6/1P4R1/3p4/8/8/8 b - - 0 1",
                               "8/3p4/1p6/1P4p1/3R4/8/8/8 b - - 0 1",
-                              "8/3R4/1p6/1P4p1/3p4/8/8/8 b - - 0 1",
-                              "8/3p4/1p6/1PR3p1/3p4/8/8/8 b - - 0 1",
-                              "8/3p4/1p6/1P2R1p1/3p4/8/8/8 b - - 0 1",
-                              "8/3p4/1p6/1P3Rp1/3p4/8/8/8 b - - 0 1",
-                              "8/3p4/1p6/1P4R1/3p4/8/8/8 b - - 0 1"});
+                              "8/3R4/1p6/1P4p1/3p4/8/8/8 b - - 0 1"});
 }
 
 TEST_CASE("rook moves edge") {
@@ -303,12 +305,12 @@ TEST_CASE("rook moves edge") {
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{
             // rook moves
-            "8/8/8/8/8/8/7R/5K2 b - - 0 1", "8/8/8/8/8/8/7p/5KR1 b - - 0 1",
+            "8/8/8/8/8/8/7R/5K2 b - - 0 1", "8/8/8/8/8/8/7p/5KR1 b - - 1 1",
 
             // king moves
-            "8/8/8/8/8/8/7p/4K2R b - - 0 1", "8/8/8/8/8/8/7p/6KR b - - 0 1",
-            "8/8/8/8/8/8/5K1p/7R b - - 0 1", "8/8/8/8/8/8/4K2p/7R b - - 0 1",
-            "8/8/8/8/8/8/6Kp/7R b - - 0 1"});
+            "8/8/8/8/8/8/7p/4K2R b - - 1 1", "8/8/8/8/8/8/7p/6KR b - - 1 1",
+            "8/8/8/8/8/8/6Kp/7R b - - 1 1", "8/8/8/8/8/8/4K2p/7R b - - 1 1",
+            "8/8/8/8/8/8/5K1p/7R b - - 1 1"});
 }
 
 TEST_CASE("queen moves") {
@@ -317,15 +319,16 @@ TEST_CASE("queen moves") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"8/8/2p1p3/2P1Q3/2ppp3/8/8/8 b - - 0 1",
+        std::set<std::string>{"8/8/2pQp3/2P1p3/2ppp3/8/8/8 b - - 1 1",
+                              "8/3Q4/2p1p3/2P1p3/2ppp3/8/8/8 b - - 1 1",
+                              "3Q4/8/2p1p3/2P1p3/2ppp3/8/8/8 b - - 1 1",
+                              // captures
                               "8/8/2Q1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1Q3/2ppp3/8/8/8 b - - 0 1",
                               "8/8/2p1Q3/2P1p3/2ppp3/8/8/8 b - - 0 1",
-                              "8/8/2pQp3/2P1p3/2ppp3/8/8/8 b - - 0 1",
                               "8/8/2p1p3/2P1p3/2Qpp3/8/8/8 b - - 0 1",
                               "8/8/2p1p3/2P1p3/2ppQ3/8/8/8 b - - 0 1",
-                              "8/8/2p1p3/2P1p3/2pQp3/8/8/8 b - - 0 1",
-                              "8/3Q4/2p1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
-                              "3Q4/8/2p1p3/2P1p3/2ppp3/8/8/8 b - - 0 1"});
+                              "8/8/2p1p3/2P1p3/2pQp3/8/8/8 b - - 0 1"});
 }
 
 TEST_CASE("king moves") {
@@ -334,15 +337,13 @@ TEST_CASE("king moves") {
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{
-            "8/8/2p1p3/2P1K3/2ppp3/8/8/8 b - - 0 1",
-            "8/8/2K1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
-            "8/8/2p1K3/2P1p3/2ppp3/8/8/8 b - - 0 1",
-            "8/8/2pKp3/2P1p3/2ppp3/8/8/8 b - - 0 1",
-            "8/8/2p1p3/2P1p3/2Kpp3/8/8/8 b - - 0 1",
-            "8/8/2p1p3/2P1p3/2ppK3/8/8/8 b - - 0 1",
-            "8/8/2p1p3/2P1p3/2pKp3/8/8/8 b - - 0 1",
-        });
+        std::set<std::string>{"8/8/2p1p3/2P1K3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2K1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2p1K3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2pKp3/2P1p3/2ppp3/8/8/8 b - - 1 1",
+                              "8/8/2p1p3/2P1p3/2Kpp3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1p3/2ppK3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1p3/2pKp3/8/8/8 b - - 0 1"});
 }
 
 TEST_CASE("white castle") {
@@ -386,15 +387,15 @@ TEST_CASE("white cannot castle") {
                               "8/8/8/8/8/p2pPp1p/P2PP2P/R3K2R b kq - 0 1",
 
                               // king moves
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R4K1R b kq - 0 1",
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R2K3R b kq - 0 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R4K1R b kq - 1 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R2K3R b kq - 1 1",
 
                               // rook moves
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/1R2K2R b kq - 0 1",
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/2R1K2R b kq - 0 1",
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/3RK2R b kq - 0 1",
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3K1R1 b kq - 0 1",
-                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3KR2 b kq - 0 1"});
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/1R2K2R b kq - 1 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/2R1K2R b kq - 1 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/3RK2R b kq - 1 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3K1R1 b kq - 1 1",
+                              "8/8/8/8/8/p2ppp1p/P2PPP1P/R3KR2 b kq - 1 1"});
 }
 
 TEST_CASE("white castle with b1 attack") {
