@@ -3,8 +3,8 @@
 #include <iostream>
 #include <set>
 
+#include "chessbot/generate_moves.h"
 #include "chessbot/magic.h"
-#include "chessbot/move.h"
 #include "chessbot/position.h"
 
 using namespace chessbot;

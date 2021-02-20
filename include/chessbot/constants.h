@@ -10,7 +10,15 @@ namespace chessbot {
 enum color : bool { WHITE, BLACK };
 enum rank : unsigned { R8, R7, R6, R5, R4, R3, R2, R1 };
 enum file : unsigned { FA, FB, FC, FD, FE, FF, FG, FH };
-enum piece_type { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NUM_PIECE_TYPES };
+enum piece_type : uint8_t {
+  PAWN,
+  KNIGHT,
+  BISHOP,
+  ROOK,
+  QUEEN,
+  KING,
+  NUM_PIECE_TYPES
+};
 constexpr auto const rank_names = std::string_view{"87654321"};
 constexpr auto const file_names = std::string_view{"abcdefgh"};
 constexpr auto const white_pieces = std::string_view{"PNBRQK"};

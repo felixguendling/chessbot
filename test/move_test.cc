@@ -5,14 +5,20 @@
 #include <sstream>
 #include <string>
 
-#include "chessbot/move.h"
+#include "chessbot/generate_moves.h"
 #include "chessbot/position.h"
 
 std::set<std::string> print_all_positions_after_move(
     chessbot::position const& p) {
+  p.validate();
   std::set<std::string> prints;
   chessbot::for_each_possible_move(p, [&](chessbot::move const& m) {
-    prints.emplace(p.make_move(m).to_str());
+    auto copy = chessbot::position{p};
+    auto const info = copy.make_move(m);
+    prints.emplace(copy.to_str());
+
+    copy.undo_move(info);
+    CHECK(p.to_fen() == copy.to_fen());
   });
   return prints;
 };
@@ -20,7 +26,11 @@ std::set<std::string> print_all_positions_after_move(
 std::set<std::string> fen_strings_after_move(chessbot::position const& p) {
   std::set<std::string> prints;
   chessbot::for_each_possible_move(p, [&](chessbot::move const& m) {
-    prints.emplace(p.make_move(m).to_fen());
+    auto copy = chessbot::position{p};
+    auto const info = copy.make_move(m);
+    prints.emplace(copy.to_fen());
+    copy.undo_move(info);
+    CHECK(p.to_fen() == copy.to_fen());
   });
   return prints;
 };
@@ -216,7 +226,7 @@ TEST_CASE("white pawn promotion") {
             "4Rq2/8/8/8/8/8/8/8 b - - 0 1", "4Qq2/8/8/8/8/8/8/8 b - - 0 1"});
 }
 
-TEST_CASE("white pawn promotion") {
+TEST_CASE("black pawn promotion") {
   auto in = std::stringstream{"8/8/8/8/8/8/4p3/5Q2 b - - 0 1"};
   chessbot::position p;
   in >> p;
@@ -497,3 +507,5 @@ TEST_CASE("white castle") {
                               "8/8/8/8/8/p2rpr1p/P2PpP1P/R3K1R1 b Qkq - 0 1",
                               "8/8/8/8/8/p2rpr1p/P2PpP1P/R3KR2 b Qkq - 0 1"});
 }
+
+TEST_CASE("undo moves") {}

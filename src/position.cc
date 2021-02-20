@@ -9,19 +9,62 @@
 #include "utl/enumerate.h"
 #include "utl/verify.h"
 
-#include "chessbot/move.h"
+#include "chessbot/generate_moves.h"
 #include "chessbot/util.h"
 
 namespace chessbot {
 
+void position::validate() const {
+  auto const all_pieces =
+      piece_states_[piece_type::PAWN] | piece_states_[piece_type::KNIGHT] |
+      piece_states_[piece_type::BISHOP] | piece_states_[piece_type::ROOK] |
+      piece_states_[piece_type::QUEEN] | piece_states_[piece_type::KING];
+  auto const all_colors =
+      pieces_by_color_[color::WHITE] | pieces_by_color_[color::BLACK];
+
+  for (auto rank = 0U; rank != 8; ++rank) {
+    for (auto file = 0U; file != 8; ++file) {
+      auto const square_bb = rank_file_to_bitboard(rank, file);
+      utl::verify((square_bb & pieces_by_color_[color::WHITE] &
+                   pieces_by_color_[color::BLACK]) == 0U,
+                  "{} is occupied by black and white:\n"
+                  "-- black:\n{}"
+                  "-- white:\n{}",
+                  get_square_name(square_bb),
+                  bitboard_to_str(pieces_by_color_[color::WHITE]),
+                  bitboard_to_str(pieces_by_color_[color::BLACK]));
+
+      auto const pieces_bb = square_bb & all_pieces;
+      auto const color_bb = square_bb & all_colors;
+      utl::verify(pieces_bb == color_bb,
+                  "{} is set in color bb but not in pieces bb or vice versa:\n"
+                  "-- pieces:\n{}"
+                  "-- color:\n{}",
+                  get_square_name(square_bb), bitboard_to_str(all_pieces),
+                  bitboard_to_str(all_colors));
+
+      auto const number_of_pieces_on_square =
+          ((piece_states_[piece_type::PAWN] & square_bb) != 0U) +
+          ((piece_states_[piece_type::KNIGHT] & square_bb) != 0U) +
+          ((piece_states_[piece_type::BISHOP] & square_bb) != 0U) +
+          ((piece_states_[piece_type::ROOK] & square_bb) != 0U) +
+          ((piece_states_[piece_type::QUEEN] & square_bb) != 0U);
+      utl::verify(number_of_pieces_on_square <= 1, "{} pieces on square {}",
+                  number_of_pieces_on_square, get_square_name(square_bb));
+    }
+  }
+}
+
 std::string position::to_fen() const {
+  validate();
+
   std::stringstream ss;
   auto empty_square_count = 0U;
   for (auto rank = 0U; rank != 8; ++rank) {
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
       auto const square_bb = rank_file_to_bitboard(rank, file);
-      for (auto const& [i, piece] : utl::enumerate(piece_statess_)) {
+      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
         if ((square_bb & piece) != 0U) {
           if (empty_square_count != 0U) {
             ss << empty_square_count;
@@ -71,12 +114,14 @@ std::string position::to_fen() const {
   }
 
   ss << ' ' << (en_passant_ == 0U ? "-" : get_square_name(en_passant_)) << ' '
-     << half_move_clock_ << ' ' << full_move_count_;
+     << static_cast<unsigned>(half_move_clock_) << ' ' << full_move_count_;
 
   return ss.str();
 }
 
 void position::print() const {
+  validate();
+
   bool white = true;
   fmt::print(" a|b|c|d|e|f|g|h|\n");
   for (auto rank = 0U; rank != 8; ++rank) {
@@ -84,7 +129,7 @@ void position::print() const {
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
       auto const square_bb = rank_file_to_bitboard(rank, file);
-      for (auto const& [i, piece] : utl::enumerate(piece_statess_)) {
+      for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
         auto const is_white = square_bb & pieces_by_color_[color::WHITE];
         if ((square_bb & piece) != 0U) {
           fmt::print(fmt::emphasis::bold |
@@ -109,6 +154,8 @@ void position::print() const {
 }
 
 std::ostream& operator<<(std::ostream& out, position const& p) {
+  p.validate();
+
   bool white = true;
   out << "  | a  | b  | c  | d  | e  | f  | g  | h  |\n";
   for (auto rank = 0U; rank != 8; ++rank) {
@@ -116,7 +163,7 @@ std::ostream& operator<<(std::ostream& out, position const& p) {
     for (auto file = 0U; file != 8; ++file) {
       auto empty = true;
       auto const square_bb = rank_file_to_bitboard(rank, file);
-      for (auto const& [i, piece] : utl::enumerate(p.piece_statess_)) {
+      for (auto const& [i, piece] : utl::enumerate(p.piece_states_)) {
         auto const is_white = square_bb & p.pieces_by_color_[color::WHITE];
         if ((rank_file_to_bitboard(rank, file) & piece) != 0U) {
           out << ' ' << (is_white ? 'w' : 'b') << white_pieces[i];
@@ -234,12 +281,18 @@ std::istream& operator>>(std::istream& in, position& p) {
         }
         break;
 
-      case HALF_MOVE_CLOCK:
-        in >> std::skipws >> p.half_move_clock_;
+      case HALF_MOVE_CLOCK: {
+        auto i = 0U;
+        in >> std::skipws >> i;
+        p.half_move_clock_ = i;
         state = FULLMOVE_NUMBER;
         break;
+      }
 
-      case FULLMOVE_NUMBER: in >> p.full_move_count_; return in;
+      case FULLMOVE_NUMBER:
+        in >> p.full_move_count_;
+        p.validate();
+        return in;
     }
   }
 }
@@ -250,145 +303,215 @@ std::string position::to_str() const {
   return ss.str();
 }
 
-position position::make_move(move const& m) const {
-  auto next = *this;
-  next.half_move_clock_++;
+state_info position::make_move(move const m) {
+#ifndef NDEBUG
+  validate();
+#endif
+
+  auto info = state_info{en_passant_, m, castling_rights_, half_move_clock_};
+  half_move_clock_++;
 
   auto const from = m.from();
   auto const to = m.to();
 
-  if (from & next.piece_statess_[PAWN]) {
-    next.half_move_clock_ = 0;
+  if (from & piece_states_[PAWN]) {
+    half_move_clock_ = 0;
   }
 
   if (m.special_move_ == move::special_move::CASTLE) {
-    next.half_move_clock_ = 0;
-    auto const active_player_first_rank =
-        next.to_move_ == color::WHITE ? R1 : R8;
-    next.toggle_pieces(KING, next.to_move_, from);
-    next.toggle_pieces(ROOK, next.to_move_, to);
+    half_move_clock_ = 0;
+    auto const active_player_first_rank = to_move_ == color::WHITE ? R1 : R8;
+    toggle_pieces(KING, to_move_, from);
+    toggle_pieces(ROOK, to_move_, to);
     if (to == rank_file_to_bitboard(active_player_first_rank, FA)) {
-      next.toggle_pieces(KING, next.to_move_,
-                         rank_file_to_bitboard(active_player_first_rank, FC));
-      next.toggle_pieces(ROOK, next.to_move_,
-                         rank_file_to_bitboard(active_player_first_rank, FD));
+      toggle_pieces(KING, to_move_,
+                    rank_file_to_bitboard(active_player_first_rank, FC));
+      toggle_pieces(ROOK, to_move_,
+                    rank_file_to_bitboard(active_player_first_rank, FD));
     } else {
-      next.toggle_pieces(KING, next.to_move_,
-                         rank_file_to_bitboard(active_player_first_rank, FG));
-      next.toggle_pieces(ROOK, next.to_move_,
-                         rank_file_to_bitboard(active_player_first_rank, FF));
+      toggle_pieces(KING, to_move_,
+                    rank_file_to_bitboard(active_player_first_rank, FG));
+      toggle_pieces(ROOK, to_move_,
+                    rank_file_to_bitboard(active_player_first_rank, FF));
     }
 
-    if (next.to_move_ == color::WHITE) {
-      next.castling_rights_.white_can_short_castle_ = false;
-      next.castling_rights_.white_can_long_castle_ = false;
+    if (to_move_ == color::WHITE) {
+      castling_rights_.white_can_short_castle_ = false;
+      castling_rights_.white_can_long_castle_ = false;
     } else {
-      next.castling_rights_.black_can_short_castle_ = false;
-      next.castling_rights_.black_can_long_castle_ = false;
+      castling_rights_.black_can_short_castle_ = false;
+      castling_rights_.black_can_long_castle_ = false;
     }
   } else {
-    for (auto& pieces : next.piece_statess_) {
+    auto pt = 0U;
+    for (auto& pieces : piece_states_) {
       if (pieces & to) {
-        next.half_move_clock_ = 0;
+        info.captured_piece_ = static_cast<piece_type>(pt);
+        half_move_clock_ = 0;
         pieces ^= to;
-        next.pieces_by_color_[next.opposing_color()] ^= to;
+        pieces_by_color_[opposing_color()] ^= to;
         break;
       }
+      ++pt;
     }
-    for (auto& pieces : next.piece_statess_) {
-      if ((pieces & next.pieces_by_color_[next.to_move_] & from) != 0U) {
-        next.pieces_by_color_[next.to_move_] ^= (from | to);
+
+    for (auto& pieces : piece_states_) {
+      if ((pieces & pieces_by_color_[to_move_] & from) != 0U) {
+        pieces_by_color_[to_move_] ^= (from | to);
         pieces ^= (from | to);
         break;
       }
     }
 
-    if (next.en_passant_ & to & next.piece_statess_[PAWN]) {
-      auto const en_passant_capture_field =
-          next.to_move_ == WHITE ? next.en_passant_ << bitboard{8}
-                                 : next.en_passant_ >> bitboard{8};
-      next.toggle_pieces(PAWN, next.to_move_ == WHITE ? BLACK : WHITE,
-                         en_passant_capture_field);
+    if (en_passant_ & to & piece_states_[PAWN]) {
+      auto const en_passant_capture_field = to_move_ == WHITE
+                                                ? en_passant_ << bitboard{8}
+                                                : en_passant_ >> bitboard{8};
+      toggle_pieces(PAWN, to_move_ == WHITE ? BLACK : WHITE,
+                    en_passant_capture_field);
     }
 
-    if ((to & next.pieces(next.to_move_, PAWN)) != 0U &&
+    if ((to & pieces(to_move_, PAWN)) != 0U &&
         std::abs(static_cast<int>(cista::trailing_zeros(from)) -
                  static_cast<int>(cista::trailing_zeros(to))) == 16) {
-      next.en_passant_ = next.to_move_ == WHITE ? (from >> 8) : (from << 8);
+      en_passant_ = to_move_ == WHITE ? (from >> 8) : (from << 8);
     } else {
-      next.en_passant_ = 0U;
+      en_passant_ = 0U;
     }
 
     if (m.special_move_ == move::special_move::PROMOTION) {
-      next.toggle_pieces(PAWN, next.to_move_, to);
+      toggle_pieces(PAWN, to_move_, to);
       switch (m.promotion_piece_type_) {
         case move::promotion_piece_type::QUEEN:
-          next.toggle_pieces(QUEEN, next.to_move_, to);
+          toggle_pieces(QUEEN, to_move_, to);
           break;
         case move::promotion_piece_type::ROOK:
-          next.toggle_pieces(ROOK, next.to_move_, to);
+          toggle_pieces(ROOK, to_move_, to);
           break;
         case move::promotion_piece_type::BISHOP:
-          next.toggle_pieces(BISHOP, next.to_move_, to);
+          toggle_pieces(BISHOP, to_move_, to);
           break;
         case move::promotion_piece_type::KNIGHT:
-          next.toggle_pieces(KNIGHT, next.to_move_, to);
+          toggle_pieces(KNIGHT, to_move_, to);
           break;
       }
     }
 
-    if (to & next.pieces(next.to_move_, ROOK)) {
+    if (to & pieces(to_move_, ROOK)) {
       if (from & rank_file_to_bitboard(R1, FA)) {
-        if (next.castling_rights_.white_can_long_castle_) {
-          next.half_move_clock_ = 0;
+        if (castling_rights_.white_can_long_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.white_can_long_castle_ = false;
+        castling_rights_.white_can_long_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R1, FH)) {
-        if (next.castling_rights_.white_can_short_castle_) {
-          next.half_move_clock_ = 0;
+        if (castling_rights_.white_can_short_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.white_can_short_castle_ = false;
+        castling_rights_.white_can_short_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R8, FA)) {
-        if (next.castling_rights_.black_can_long_castle_) {
-          next.half_move_clock_ = 0;
+        if (castling_rights_.black_can_long_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.black_can_long_castle_ = false;
+        castling_rights_.black_can_long_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R8, FH)) {
-        if (next.castling_rights_.black_can_short_castle_) {
-          next.half_move_clock_ = 0;
+        if (castling_rights_.black_can_short_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.black_can_short_castle_ = false;
+        castling_rights_.black_can_short_castle_ = false;
       }
     }
 
-    if (to & next.pieces(next.to_move_, KING)) {
-      if (next.to_move_ == color::WHITE) {
-        if (next.castling_rights_.white_can_short_castle_ ||
-            next.castling_rights_.white_can_long_castle_) {
-          next.half_move_clock_ = 0;
+    if (to & pieces(to_move_, KING)) {
+      if (to_move_ == color::WHITE) {
+        if (castling_rights_.white_can_short_castle_ ||
+            castling_rights_.white_can_long_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.white_can_long_castle_ = false;
-        next.castling_rights_.white_can_short_castle_ = false;
+        castling_rights_.white_can_long_castle_ = false;
+        castling_rights_.white_can_short_castle_ = false;
       } else {
-        if (next.castling_rights_.black_can_short_castle_ ||
-            next.castling_rights_.black_can_long_castle_) {
-          next.half_move_clock_ = 0;
+        if (castling_rights_.black_can_short_castle_ ||
+            castling_rights_.black_can_long_castle_) {
+          half_move_clock_ = 0;
         }
-        next.castling_rights_.black_can_long_castle_ = false;
-        next.castling_rights_.black_can_short_castle_ = false;
+        castling_rights_.black_can_long_castle_ = false;
+        castling_rights_.black_can_short_castle_ = false;
       }
     }
   }
 
-  if (next.to_move_ == BLACK) {
-    ++next.full_move_count_;
+  if (to_move_ == BLACK) {
+    ++full_move_count_;
   }
 
-  next.to_move_ = next.to_move_ == WHITE ? BLACK : WHITE;
-  return next;
+  to_move_ = opposing_color();
+  return info;
+}
+
+void position::undo_move(state_info const info) {
+  if (to_move_ == color::WHITE) {
+    --full_move_count_;
+  }
+  castling_rights_ = info.castling_rights_;
+  half_move_clock_ = info.half_move_clock_;
+  en_passant_ = info.en_passant_;
+
+  auto const to = info.last_move_.to();
+  auto const from = info.last_move_.from();
+
+  if (info.last_move_.special_move_ == move::special_move::CASTLE) {
+    auto const king_squares_bb =
+        (to & full_file_bitboard(FH))
+            ? from | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FG)
+                                               : rank_file_to_bitboard(R1, FG))
+            : from | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FC)
+                                               : rank_file_to_bitboard(R1, FC));
+    piece_states_[piece_type::KING] ^= king_squares_bb;
+    pieces_by_color_[opposing_color()] ^= king_squares_bb;
+
+    auto const rook_squares_bb =
+        (to & full_file_bitboard(FH))
+            ? to | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FF)
+                                             : rank_file_to_bitboard(R1, FF))
+            : to | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FD)
+                                             : rank_file_to_bitboard(R1, FD));
+    piece_states_[piece_type::ROOK] ^= rook_squares_bb;
+    pieces_by_color_[opposing_color()] ^= rook_squares_bb;
+  } else {
+    // Restore en passant captured pawn.
+    if (piece_states_[PAWN] & to & en_passant_) {
+      auto const captured_pawn = to_move_ == color::WHITE
+                                     ? north_west(to, 1, 0)
+                                     : north_west(to, -1, 0);
+      piece_states_[PAWN] |= captured_pawn;
+      pieces_by_color_[to_move_] |= captured_pawn;
+    }
+
+    // Restore moving piece at its original square.
+    for (auto& pt_bb : piece_states_) {
+      if (to & pt_bb) {
+        pt_bb ^= to;
+        pieces_by_color_[opposing_color()] ^= to | from;
+        auto& promotion_bb =
+            info.last_move_.special_move_ == move::special_move::PROMOTION
+                ? piece_states_[piece_type::PAWN]
+                : pt_bb;
+        promotion_bb ^= from;
+        break;
+      }
+    }
+
+    // Restore captured piece.
+    if (info.captured_piece_ != piece_type::NUM_PIECE_TYPES) {
+      piece_states_[info.captured_piece_] |= to;
+      pieces_by_color_[to_move_] |= to;
+    }
+  }
+
+  to_move_ = opposing_color();
 }
 
 }  // namespace chessbot

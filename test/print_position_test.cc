@@ -117,5 +117,5 @@ TEST_CASE("fen output") {
   auto p = chessbot::position{};
   in >> p;
 
-  CHECK(p.to_fen() == start_position_fen);
+  CHECK(p.to_fen() == std::string{start_position_fen});
 }
