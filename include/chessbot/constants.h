@@ -5,7 +5,13 @@
 #include <limits>
 #include <string_view>
 
+#include "chessbot/bitboard.h"
+#include "chessbot/north_west.h"
+
 namespace chessbot {
+
+constexpr auto const start_position_fen =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 enum color : bool { WHITE, BLACK };
 enum rank : unsigned { R8, R7, R6, R5, R4, R3, R2, R1 };
@@ -29,8 +35,6 @@ constexpr auto const utf8_pieces =
                                         "\u2655", "\u2654"},
         std::array<std::string_view, 6>{"\u265F", "\u265E", "\u265D", "\u265C",
                                         "\u265B", "\u265A"}};
-
-using bitboard = uint64_t;
 
 struct rank_file {
   constexpr rank_file(unsigned r, unsigned f) : file_{f}, rank_{r} {}
@@ -129,5 +133,58 @@ constexpr auto const long_castle_king_traversal_squares = std::array{
                rank_file_to_bitboard(R1, FE)},
     std::array{rank_file_to_bitboard(R8, FD), rank_file_to_bitboard(R8, FC),
                rank_file_to_bitboard(R8, FE)}};
+
+template <typename Fn>
+inline constexpr void for_each_knight_target_square(bitboard const origin,
+                                                    Fn&& f) {
+  for (auto dir :
+       {safe_north_west(origin, 2, 1), safe_north_west(origin, 2, -1),
+        safe_north_west(origin, -2, 1), safe_north_west(origin, -2, -1),
+        safe_north_west(origin, 1, -2), safe_north_west(origin, 1, 2),
+        safe_north_west(origin, -1, 2), safe_north_west(origin, -1, -2)}) {
+    if (dir) {
+      f(dir);
+    }
+  }
+}
+
+constexpr auto const knight_attacks_by_origin_square = []() {
+  std::array<bitboard, 64> knight_attacks_bb;
+  for (auto i = 0; i < 64; ++i) {
+    auto knight_destinations = bitboard{};
+    for_each_knight_target_square(bitboard{1} << i,
+                                  [&](bitboard const destination) {
+                                    knight_destinations |= destination;
+                                  });
+    knight_attacks_bb[i] = knight_destinations;
+  }
+  return knight_attacks_bb;
+}();
+
+template <typename Fn>
+inline constexpr void for_each_king_target_square(bitboard const origin,
+                                                  Fn&& f) {
+  for (auto dir :
+       {safe_north_west(origin, 1, 0), safe_north_west(origin, 1, -1),
+        safe_north_west(origin, 1, 1), safe_north_west(origin, 0, -1),
+        safe_north_west(origin, 0, 1), safe_north_west(origin, -1, 1),
+        safe_north_west(origin, -1, 0), safe_north_west(origin, -1, -1)}) {
+    if (dir) {
+      f(dir);
+    }
+  }
+}
+
+constexpr auto const king_attacks_by_origin_square = []() {
+  std::array<bitboard, 64> king_attacks_bb;
+  for (auto i = 0; i < 64; ++i) {
+    auto king_destinations = bitboard{};
+    for_each_king_target_square(
+        bitboard{1} << i,
+        [&](bitboard const destination) { king_destinations |= destination; });
+    king_attacks_bb[i] = king_destinations;
+  }
+  return king_attacks_bb;
+}();
 
 }  // namespace chessbot

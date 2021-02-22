@@ -12,32 +12,51 @@
 
 namespace chessbot {
 
-inline bitboard north_west(bitboard const bb, int const north, int const west) {
-  auto const shift = north * 8 + west;
-  if (shift >= 64 || shift <= -64) {
-    return 0U;
+inline bool is_valid_move(position const& p, move const m) {
+  auto const king_bb = p.pieces(p.to_move_, piece_type::KING);
+  auto const from = m.from();
+  auto const to = m.to();
+  auto const king = (m.from() & king_bb) ? to : king_bb;
+
+  auto const pawn_attacks = [&]() {
+    auto const opposing_pawns =
+        p.pieces(p.opposing_color(), piece_type::PAWN) & ~to;
+    auto attacked_bb = bitboard{};
+    if (p.to_move_ == color::WHITE) {
+      attacked_bb |= (opposing_pawns & ~full_file_bitboard(FA)) << 7;
+      attacked_bb |= (opposing_pawns & ~full_file_bitboard(FH)) << 9;
+    } else {
+      attacked_bb |= (opposing_pawns & ~full_file_bitboard(FA)) >> 9;
+      attacked_bb |= (opposing_pawns & ~full_file_bitboard(FH)) >> 7;
+    }
+    return attacked_bb;
+  };
+
+  auto const king_square_idx = cista::trailing_zeros(king);
+  if ((p.pieces(p.opposing_color(), piece_type::KNIGHT) & ~to &
+       knight_attacks_by_origin_square[king_square_idx]) ||
+      (p.pieces(p.opposing_color(), piece_type::KING) &
+       king_attacks_by_origin_square[king_square_idx]) ||
+      (pawn_attacks() & king)) {
+    return false;
   }
-  return (shift < 0) ? bb << (-shift) : bb >> shift;
-}
-
-inline bitboard safe_north_west(bitboard const bb, int const north,
-                                int const west) {
-  auto const result = north_west(bb, north, west);
-
-  auto const prev_id = cista::trailing_zeros(bb);
-  auto const prev_file = prev_id % 8;
-  auto const prev_rank = prev_id / 8;
-
-  auto const id = cista::trailing_zeros(result);
-  auto const file = id % 8;
-  auto const rank = id / 8;
-
-  if (north > 0 && prev_rank <= rank || north < 0 && prev_rank >= rank ||
-      west > 0 && prev_file <= file || west < 0 && prev_file >= file) {
-    return 0U;
-  } else {
-    return result;
+  auto occupancy_after_move_bb = (p.all_pieces() & ~from) | to;
+  if (p.en_passant_ == to && from & p.pieces(p.to_move_, piece_type::PAWN)) {
+    occupancy_after_move_bb &=
+        ~north_west(to, p.to_move_ == color::WHITE ? -1 : 1, 0);
   }
+
+  if (king && ((get_attack_squares<BISHOP>(king, occupancy_after_move_bb) &
+                (p.pieces(p.opposing_color(), piece_type::BISHOP) |
+                 p.pieces(p.opposing_color(), piece_type::QUEEN)) &
+                ~to) ||
+               ((get_attack_squares<ROOK>(king, occupancy_after_move_bb) &
+                 (p.pieces(p.opposing_color(), piece_type::ROOK) |
+                  p.pieces(p.opposing_color(), piece_type::QUEEN))) &
+                ~to))) {
+    return false;
+  }
+  return true;
 }
 
 template <typename Fn>
@@ -56,19 +75,25 @@ void for_each_possible_move(position const& p, Fn&& f) {
   auto const opposing_pieces = p.pieces_by_color_[p.opposing_color()];
   auto const all_pieces = own_pieces | opposing_pieces;
 
+  auto const call_f_for_valid_move = [&](move const m) {
+    if (is_valid_move(p, m)) {
+      f(m);
+    }
+  };
+
   auto const move_pawn_with_promotion_check = [&](move m) {
     if (m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
       m.special_move_ = move::special_move::PROMOTION;
       m.promotion_piece_type_ = move::promotion_piece_type::KNIGHT;
-      f(m);
+      call_f_for_valid_move(m);
       m.promotion_piece_type_ = move::promotion_piece_type::ROOK;
-      f(m);
+      call_f_for_valid_move(m);
       m.promotion_piece_type_ = move::promotion_piece_type::BISHOP;
-      f(m);
+      call_f_for_valid_move(m);
       m.promotion_piece_type_ = move::promotion_piece_type::QUEEN;
-      f(m);
+      call_f_for_valid_move(m);
     } else {
-      f(m);
+      call_f_for_valid_move(m);
     }
   };
 
@@ -86,7 +111,7 @@ void for_each_possible_move(position const& p, Fn&& f) {
         if (((pawn & second_rank[p.to_move_]) != 0U) &&
             (single_jump_destination & all_pieces) == 0U &&
             (double_jump_destination & all_pieces) == 0U) {
-          f(move{pawn, double_jump_destination});
+          call_f_for_valid_move(move{pawn, double_jump_destination});
         }
 
         auto const right_capture =
@@ -106,16 +131,13 @@ void for_each_possible_move(position const& p, Fn&& f) {
 
   for_each_set_bit(
       p.pieces(p.to_move_, piece_type::KNIGHT), [&](bitboard const knight) {
-        for (auto const target :
-             {safe_north_west(knight, 2, 1), safe_north_west(knight, 2, -1),
-              safe_north_west(knight, -2, 1), safe_north_west(knight, -2, -1),
-              safe_north_west(knight, 1, -2), safe_north_west(knight, 1, 2),
-              safe_north_west(knight, -1, 2),
-              safe_north_west(knight, -1, -2)}) {
-          if (target != 0U && (target & own_pieces) == 0U) {
-            f(move{knight, target});
-          }
-        }
+        for_each_set_bit(
+            knight_attacks_by_origin_square[cista::trailing_zeros(knight)],
+            [&](bitboard const target) {
+              if ((target & own_pieces) == 0U) {
+                call_f_for_valid_move(move{knight, target});
+              }
+            });
       });
 
   for_each_set_bit(
@@ -124,7 +146,7 @@ void for_each_possible_move(position const& p, Fn&& f) {
             get_attack_squares<piece_type::BISHOP>(bishop, all_pieces) &
                 ~own_pieces,
             [&](bitboard const attack_square) {
-              f(move{bishop, attack_square});
+              call_f_for_valid_move(move{bishop, attack_square});
             });
       });
 
@@ -134,7 +156,7 @@ void for_each_possible_move(position const& p, Fn&& f) {
             get_attack_squares<piece_type::ROOK>(rook, all_pieces) &
                 ~own_pieces,
             [&](bitboard const attack_square) {
-              f(move{rook, attack_square});
+              call_f_for_valid_move(move{rook, attack_square});
             });
       });
 
@@ -145,19 +167,18 @@ void for_each_possible_move(position const& p, Fn&& f) {
              get_attack_squares<piece_type::BISHOP>(queen, all_pieces)) &
                 ~own_pieces,
             [&](bitboard const attack_square) {
-              f(move{queen, attack_square});
+              call_f_for_valid_move(move{queen, attack_square});
             });
       });
 
   auto const king = p.pieces(p.to_move_, piece_type::KING);
-  for (auto const target :
-       {safe_north_west(king, 1, 0), safe_north_west(king, 1, -1),
-        safe_north_west(king, 1, 1), safe_north_west(king, 0, -1),
-        safe_north_west(king, 0, 1), safe_north_west(king, -1, 1),
-        safe_north_west(king, -1, 0), safe_north_west(king, -1, -1)}) {
-    if (target != 0U && (target & own_pieces) == 0U) {
-      f(move{king, target});
-    }
+  if (king) {
+    for_each_set_bit(king_attacks_by_origin_square[cista::trailing_zeros(king)],
+                     [&](bitboard const target) {
+                       if ((target & own_pieces) == 0U) {
+                         call_f_for_valid_move(move{king, target});
+                       }
+                     });
   }
 
   auto const can_short_castle = [&]() {
@@ -223,14 +244,14 @@ void for_each_possible_move(position const& p, Fn&& f) {
     auto m = move{rank_file_to_bitboard(active_player_first_rank, FE),
                   rank_file_to_bitboard(active_player_first_rank, FH)};
     m.special_move_ = move::special_move::CASTLE;
-    f(m);
+    call_f_for_valid_move(m);
   }
 
   if (can_long_castle()) {
     auto m = move{rank_file_to_bitboard(active_player_first_rank, FE),
                   rank_file_to_bitboard(active_player_first_rank, FA)};
     m.special_move_ = move::special_move::CASTLE;
-    f(m);
+    call_f_for_valid_move(m);
   }
 }
 }  // namespace chessbot

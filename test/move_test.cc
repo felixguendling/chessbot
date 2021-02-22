@@ -8,12 +8,13 @@
 #include "chessbot/generate_moves.h"
 #include "chessbot/position.h"
 
-std::set<std::string> print_all_positions_after_move(
-    chessbot::position const& p) {
+using namespace chessbot;
+
+std::set<std::string> print_all_positions_after_move(position const& p) {
   p.validate();
   std::set<std::string> prints;
-  chessbot::for_each_possible_move(p, [&](chessbot::move const& m) {
-    auto copy = chessbot::position{p};
+  for_each_possible_move(p, [&](move const& m) {
+    auto copy = position{p};
     auto const info = copy.make_move(m);
     prints.emplace(copy.to_str());
 
@@ -23,10 +24,10 @@ std::set<std::string> print_all_positions_after_move(
   return prints;
 };
 
-std::set<std::string> fen_strings_after_move(chessbot::position const& p) {
+std::set<std::string> fen_strings_after_move(position const& p) {
   std::set<std::string> prints;
-  chessbot::for_each_possible_move(p, [&](chessbot::move const& m) {
-    auto copy = chessbot::position{p};
+  for_each_possible_move(p, [&](move const& m) {
+    auto copy = position{p};
     auto const info = copy.make_move(m);
     prints.emplace(copy.to_fen());
     copy.undo_move(info);
@@ -86,7 +87,7 @@ TEST_CASE("white pawn moves") {
 1 |    |    |    |    |    |    |    |    |
 )";
 
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p) ==
         std::set<std::string>{move_board, double_jump_board, capture_board_1,
@@ -143,7 +144,7 @@ TEST_CASE("black pawn moves") {
 )";
 
   auto in = std::stringstream{"8/1p6/P1P5/8/8/8/8/8 b - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p) ==
         std::set<std::string>{move_board, double_jump_board, capture_board_1,
@@ -164,7 +165,7 @@ TEST_CASE("en passant white") {
 )";
 
   auto in = std::stringstream{"8/8/1p6/pP6/8/8/8/8 w - a6 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p) ==
         std::set<std::string>{capture_en_passant});
@@ -184,7 +185,7 @@ TEST_CASE("en passant black") {
 )";
 
   auto in = std::stringstream{"8/8/8/8/pP6/K7/8/8 b - b3 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p) ==
         std::set<std::string>{capture_en_passant});
@@ -192,7 +193,7 @@ TEST_CASE("en passant black") {
 
 TEST_CASE("en passant white") {
   auto in = std::stringstream{"8/4p3/8/8/8/8/8/8 b - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{"8/8/4p3/8/8/8/8/8 w - - 0 2",
@@ -201,21 +202,21 @@ TEST_CASE("en passant white") {
 
 TEST_CASE("white pawn moves blocked") {
   auto in = std::stringstream{"8/8/8/8/6p1/6Pp/p6P/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p).empty());
 }
 
 TEST_CASE("black pawn moves blocked") {
   auto in = std::stringstream{"8/p7/P7/8/8/8/8/8 b - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
   CHECK(print_all_positions_after_move(p).empty());
 }
 
 TEST_CASE("white pawn promotion") {
   auto in = std::stringstream{"5q2/4P3/8/8/8/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -228,7 +229,7 @@ TEST_CASE("white pawn promotion") {
 
 TEST_CASE("black pawn promotion") {
   auto in = std::stringstream{"8/8/8/8/8/8/4p3/5Q2 b - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -241,7 +242,7 @@ TEST_CASE("black pawn promotion") {
 
 TEST_CASE("knight move") {
   auto in = std::stringstream{"N6N/8/8/8/8/8/8/N6N w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -255,7 +256,7 @@ TEST_CASE("knight move") {
 
 TEST_CASE("knight move blocked") {
   auto in = std::stringstream{"N1q4N/2P5/8/8/8/8/8/N6N w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -270,7 +271,7 @@ TEST_CASE("knight move blocked") {
 
 TEST_CASE("knight move capture") {
   auto in = std::stringstream{"N7/2p5/8/8/8/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -280,7 +281,7 @@ TEST_CASE("knight move capture") {
 
 TEST_CASE("bishop moves") {
   auto in = std::stringstream{"8/1p2p3/4P3/3B4/2p1p3/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -293,7 +294,7 @@ TEST_CASE("bishop moves") {
 
 TEST_CASE("rook moves") {
   auto in = std::stringstream{"8/3p4/1p6/1P1R2p1/3p4/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -309,7 +310,7 @@ TEST_CASE("rook moves") {
 
 TEST_CASE("rook moves edge") {
   auto in = std::stringstream{"8/8/8/8/8/8/7p/5K1R w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -318,14 +319,13 @@ TEST_CASE("rook moves edge") {
             "8/8/8/8/8/8/7R/5K2 b - - 0 1", "8/8/8/8/8/8/7p/5KR1 b - - 1 1",
 
             // king moves
-            "8/8/8/8/8/8/7p/4K2R b - - 1 1", "8/8/8/8/8/8/7p/6KR b - - 1 1",
-            "8/8/8/8/8/8/6Kp/7R b - - 1 1", "8/8/8/8/8/8/4K2p/7R b - - 1 1",
-            "8/8/8/8/8/8/5K1p/7R b - - 1 1"});
+            "8/8/8/8/8/8/7p/4K2R b - - 1 1", "8/8/8/8/8/8/6Kp/7R b - - 1 1",
+            "8/8/8/8/8/8/4K2p/7R b - - 1 1", "8/8/8/8/8/8/5K1p/7R b - - 1 1"});
 }
 
 TEST_CASE("queen moves") {
   auto in = std::stringstream{"8/8/2p1p3/2PQp3/2ppp3/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -343,22 +343,21 @@ TEST_CASE("queen moves") {
 
 TEST_CASE("king moves") {
   auto in = std::stringstream{"8/8/2p1p3/2PKp3/2ppp3/8/8/8 w - - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"8/8/2p1p3/2P1K3/2ppp3/8/8/8 b - - 0 1",
-                              "8/8/2K1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+        std::set<std::string>{"8/8/2K1p3/2P1p3/2ppp3/8/8/8 b - - 0 1",
+                              "8/8/2p1p3/2P1K3/2ppp3/8/8/8 b - - 0 1",
                               "8/8/2p1K3/2P1p3/2ppp3/8/8/8 b - - 0 1",
                               "8/8/2pKp3/2P1p3/2ppp3/8/8/8 b - - 1 1",
                               "8/8/2p1p3/2P1p3/2Kpp3/8/8/8 b - - 0 1",
-                              "8/8/2p1p3/2P1p3/2ppK3/8/8/8 b - - 0 1",
-                              "8/8/2p1p3/2P1p3/2pKp3/8/8/8 b - - 0 1"});
+                              "8/8/2p1p3/2P1p3/2ppK3/8/8/8 b - - 0 1"});
 }
 
 TEST_CASE("white castle") {
   auto in = std::stringstream{"8/8/8/8/8/p2ppp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -386,7 +385,7 @@ TEST_CASE("white castle") {
 
 TEST_CASE("white cannot castle") {
   auto in = std::stringstream{"8/8/8/8/8/p2ppp1p/P2PPP1P/R3K2R w kq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -410,7 +409,7 @@ TEST_CASE("white cannot castle") {
 
 TEST_CASE("white castle with b1 attack") {
   auto in = std::stringstream{"8/8/8/8/8/n2ppp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -439,7 +438,7 @@ TEST_CASE("white castle with b1 attack") {
 TEST_CASE("white cannot castle with attack and block") {
   auto in =
       std::stringstream{"8/2r5/8/8/8/n2ppp1p/P2PPP1P/R3Kn1R w KQkq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -463,31 +462,21 @@ TEST_CASE("white cannot castle with attack and block") {
 
 TEST_CASE("white cannot castle knight attack") {
   auto in = std::stringstream{"8/8/8/8/8/p2npp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{// pawn captures
                               "8/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b KQkq - 0 1",
-                              "8/8/8/8/8/p2npP1p/P2P1P1P/R3K2R b KQkq - 0 1",
-                              "8/8/8/8/8/p2nPp1p/P3PP1P/R3K2R b KQkq - 0 1",
-                              "8/8/8/8/8/p2nPp1p/P2PP2P/R3K2R b KQkq - 0 1",
 
                               // king moves
                               "8/8/8/8/8/p2npp1p/P2PPP1P/R4K1R b kq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/R2K3R b kq - 0 1",
-
-                              // rook moves
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/1R2K2R b Kkq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/2R1K2R b Kkq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/3RK2R b Kkq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/R3K1R1 b Qkq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/R3KR2 b Qkq - 0 1"});
+                              "8/8/8/8/8/p2npp1p/P2PPP1P/R2K3R b kq - 0 1"});
 }
 
 TEST_CASE("white castle") {
   auto in = std::stringstream{"8/8/8/8/8/p2rpr1p/P2PpP1P/R3K2R w KQkq - 0 1"};
-  chessbot::position p;
+  position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
@@ -496,8 +485,6 @@ TEST_CASE("white castle") {
                               "8/8/8/8/8/p2rPr1p/P2Pp2P/R3K2R b KQkq - 0 1",
 
                               // king moves
-                              "8/8/8/8/8/p2rpr1p/P2PpP1P/R4K1R b kq - 0 1",
-                              "8/8/8/8/8/p2rpr1p/P2PpP1P/R2K3R b kq - 0 1",
                               "8/8/8/8/8/p2rpr1p/P2PKP1P/R6R b kq - 0 1",
 
                               // rook moves
@@ -508,4 +495,63 @@ TEST_CASE("white castle") {
                               "8/8/8/8/8/p2rpr1p/P2PpP1P/R3KR2 b Qkq - 0 1"});
 }
 
-TEST_CASE("undo moves") {}
+TEST_CASE("make move from string") {
+  auto in = std::stringstream{start_position_fen};
+
+  auto p = position{};
+  in >> p;
+
+  p.make_move("e2e3");
+  p.make_move("e7e6");
+
+  CHECK(p.to_fen() ==
+        "rnbqkbnr/pppp1ppp/4p3/8/8/4P3/PPPP1PPP/RNBQKBNR w KQkq - 0 2");
+}
+
+TEST_CASE("escape check") {
+  constexpr auto const pos_fen = "8/8/7P/8/8/p7/8/K6r w - - 0 2";
+  auto in = std::stringstream{pos_fen};
+
+  auto p = position{};
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{// pawn captures
+                              "8/8/7P/8/8/p7/K7/7r b - - 1 2"});
+}
+
+TEST_CASE("knight attacks by origin square") {
+  auto const expected = std::string{R"(00000000
+00000000
+01010000
+10001000
+00000000
+10001000
+01010000
+00000000
+)"};
+  CHECK(expected == bitboard_to_str(knight_attacks_by_origin_square[34]));
+}
+
+TEST_CASE("escape check big") {
+  constexpr auto const pos_fen = "4q3/8/3n4/1K1Pp2r/8/8/8/1r3b2 w - e6 0 1";
+  auto in = std::stringstream{pos_fen};
+
+  auto p = position{};
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"4q3/8/3n4/2KPp2r/8/8/8/1r3b2 b - - 1 1",
+                              "4q3/8/3n4/K2Pp2r/8/8/8/1r3b2 b - - 1 1"});
+}
+
+TEST_CASE("escape check en passant") {
+  constexpr auto const pos_fen = "8/1k6/8/1K2Pp1r/7r/1n6/8/8 w - - 1 1";
+  auto in = std::stringstream{pos_fen};
+
+  auto p = position{};
+  in >> p;
+
+  CHECK(fen_strings_after_move(p) ==
+        std::set<std::string>{"8/1k6/4P3/1K3p1r/7r/1n6/8/8 b - - 0 1"});
+}

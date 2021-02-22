@@ -25,23 +25,28 @@ void position::validate() const {
   for (auto rank = 0U; rank != 8; ++rank) {
     for (auto file = 0U; file != 8; ++file) {
       auto const square_bb = rank_file_to_bitboard(rank, file);
-      utl::verify((square_bb & pieces_by_color_[color::WHITE] &
-                   pieces_by_color_[color::BLACK]) == 0U,
-                  "{} is occupied by black and white:\n"
-                  "-- black:\n{}"
-                  "-- white:\n{}",
-                  get_square_name(square_bb),
-                  bitboard_to_str(pieces_by_color_[color::WHITE]),
-                  bitboard_to_str(pieces_by_color_[color::BLACK]));
+      if ((square_bb & pieces_by_color_[color::WHITE] &
+           pieces_by_color_[color::BLACK]) != 0U) {
+        utl::verify(false,
+                    "{} is occupied by black and white:\n"
+                    "-- black:\n{}"
+                    "-- white:\n{}",
+                    get_square_name(square_bb),
+                    bitboard_to_str(pieces_by_color_[color::WHITE]),
+                    bitboard_to_str(pieces_by_color_[color::BLACK]));
+      }
 
       auto const pieces_bb = square_bb & all_pieces;
       auto const color_bb = square_bb & all_colors;
-      utl::verify(pieces_bb == color_bb,
-                  "{} is set in color bb but not in pieces bb or vice versa:\n"
-                  "-- pieces:\n{}"
-                  "-- color:\n{}",
-                  get_square_name(square_bb), bitboard_to_str(all_pieces),
-                  bitboard_to_str(all_colors));
+      if (pieces_bb != color_bb) {
+        utl::verify(
+            false,
+            "{} is set in color bb but not in pieces bb or vice versa:\n"
+            "-- pieces:\n{}"
+            "-- color:\n{}",
+            get_square_name(square_bb), bitboard_to_str(all_pieces),
+            bitboard_to_str(all_colors));
+      }
 
       auto const number_of_pieces_on_square =
           ((piece_states_[piece_type::PAWN] & square_bb) != 0U) +
@@ -49,8 +54,10 @@ void position::validate() const {
           ((piece_states_[piece_type::BISHOP] & square_bb) != 0U) +
           ((piece_states_[piece_type::ROOK] & square_bb) != 0U) +
           ((piece_states_[piece_type::QUEEN] & square_bb) != 0U);
-      utl::verify(number_of_pieces_on_square <= 1, "{} pieces on square {}",
-                  number_of_pieces_on_square, get_square_name(square_bb));
+      if (number_of_pieces_on_square > 1) {
+        utl::verify(false, "{} pieces on square {}", number_of_pieces_on_square,
+                    get_square_name(square_bb));
+      }
     }
   }
 }
@@ -291,6 +298,7 @@ std::istream& operator>>(std::istream& in, position& p) {
 
       case FULLMOVE_NUMBER:
         in >> p.full_move_count_;
+        p.add_hash();
         p.validate();
         return in;
     }
@@ -301,6 +309,15 @@ std::string position::to_str() const {
   std::stringstream ss;
   ss << *this;
   return ss.str();
+}
+
+state_info position::make_move(std::string const& str) {
+  auto const from_file = str[0] - 'a';
+  auto const from_rank = 8 - (str[1] - '0');
+  auto const to_file = str[2] - 'a';
+  auto const to_rank = 8 - (str[3] - '0');
+  return make_move(move{rank_file_to_bitboard(from_rank, from_file),
+                        rank_file_to_bitboard(to_rank, to_file)});
 }
 
 state_info position::make_move(move const m) {
@@ -448,6 +465,9 @@ state_info position::make_move(move const m) {
   }
 
   to_move_ = opposing_color();
+
+  add_hash();
+
   return info;
 }
 
@@ -512,6 +532,56 @@ void position::undo_move(state_info const info) {
   }
 
   to_move_ = opposing_color();
+}
+
+void position::add_hash() {
+  auto hash = zobrist_t{};
+
+  for (auto const& [pt, piece_state_bb] : utl::enumerate(piece_states_)) {
+    auto const piece_type_idx = pt;
+    for_each_set_bit(piece_state_bb, [&](bitboard const piece_bb) {
+      auto const color = pieces_by_color_[color::WHITE] & piece_bb
+                             ? color::WHITE
+                             : color::BLACK;
+      auto const square_idx = cista::trailing_zeros(piece_bb);
+      hash ^= zobrist_piece_hashes[square_idx][color][piece_type_idx];
+    });
+  }
+
+  if (castling_rights_.white_can_short_castle_) {
+    hash ^= zobrist_castling_rights_hashes[0];
+  }
+  if (castling_rights_.white_can_long_castle_) {
+    hash ^= zobrist_castling_rights_hashes[1];
+  }
+  if (castling_rights_.black_can_short_castle_) {
+    hash ^= zobrist_castling_rights_hashes[2];
+  }
+  if (castling_rights_.black_can_long_castle_) {
+    hash ^= zobrist_castling_rights_hashes[3];
+  }
+
+  if (to_move_ == color::BLACK) {
+    hash = ~hash;
+  }
+
+  if (en_passant_) {
+    hash ^= en_passant_hashes[en_passant_ % 8];
+  }
+
+  hashes_[half_move_clock_ + 1] = hash;
+
+  std::cout << to_fen() << "\n";
+  print();
+  std::cout << hash << "\n\n";
+}
+
+unsigned position::new_repetitions() {
+  if (half_move_clock_ == 0U) {
+    return 0U;
+  }
+  return std::count(begin(hashes_), begin(hashes_) + half_move_clock_ - 1,
+                    hashes_[half_move_clock_]);
 }
 
 }  // namespace chessbot

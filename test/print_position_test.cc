@@ -1,10 +1,11 @@
 #include "doctest/doctest.h"
 
-#include <iostream>
+#include <sstream>
 
+#include "chessbot/constants.h"
 #include "chessbot/position.h"
 
-#include <sstream>
+using namespace chessbot;
 
 TEST_CASE("print start position") {
   auto const start_position =
@@ -19,8 +20,6 @@ TEST_CASE("print start position") {
 1 | wR | wN | wB | wQ | wK | wB | wN | wR |
 )"};
 
-  constexpr auto const start_position_fen =
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   auto in = std::stringstream{start_position_fen};
 
   auto p = chessbot::position{};
@@ -110,8 +109,6 @@ TEST_CASE("print random position") {
 }
 
 TEST_CASE("fen output") {
-  constexpr auto const start_position_fen =
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   auto in = std::stringstream{start_position_fen};
 
   auto p = chessbot::position{};

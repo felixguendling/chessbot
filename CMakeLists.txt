@@ -3,6 +3,8 @@ project(chessbot)
 
 include(cmake/pkg.cmake)
 
+find_package(Threads)
+
 file(GLOB_RECURSE chessbot-files src/*.cc)
 file(GLOB_RECURSE chessbot-test-files test/*.cc)
 file(GLOB main-file src/main.cc)
@@ -17,6 +19,6 @@ add_executable(chessbot-exe ${chessbot-files})
 target_link_libraries(chessbot-exe chessbot)
 
 add_executable(chessbot-test ${chessbot-test-files})
-target_link_libraries(chessbot-test chessbot doctest)
+target_link_libraries(chessbot-test chessbot doctest Threads::Threads)
 
 

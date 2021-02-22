@@ -6,11 +6,10 @@
 #include <span>
 #include <string_view>
 
-#include <iostream>  // TODO REMOVE
-
 #include "chessbot/constants.h"
 #include "chessbot/move.h"
 #include "chessbot/util.h"
+#include "chessbot/zobrist.h"
 
 namespace chessbot {
 
@@ -39,6 +38,7 @@ struct position {
   friend std::istream& operator>>(std::istream&, position&);
 
   void print() const;
+  state_info make_move(std::string const&);
   state_info make_move(move);
   void undo_move(state_info);
   std::string to_str() const;
@@ -47,6 +47,10 @@ struct position {
 
   color opposing_color() const {
     return to_move_ == color::WHITE ? color::BLACK : color::WHITE;
+  }
+
+  bitboard all_pieces() const {
+    return pieces_by_color_[color::WHITE] | pieces_by_color_[color::BLACK];
   }
 
   bitboard pieces(color const c, piece_type const pt) const {
@@ -69,12 +73,16 @@ struct position {
                              : castling_rights_.black_can_long_castle_;
   }
 
+  void add_hash();
+  unsigned new_repetitions();
+
   std::array<bitboard, NUM_PIECE_TYPES> piece_states_{};
   std::array<bitboard, 2> pieces_by_color_{};
   bitboard en_passant_{0U};
   uint8_t half_move_clock_{0U};
   unsigned full_move_count_{0U};
   color to_move_{color::WHITE};
+  std::array<zobrist_t, 50> hashes_;
 
   castling_rights castling_rights_;
 };
