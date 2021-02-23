@@ -34,8 +34,8 @@ void position::validate() const {
            pieces_by_color_[color::BLACK]) != 0U) {
         utl::verify(false,
                     "{} is occupied by black and white:\n"
-                    "-- black:\n{}"
-                    "-- white:\n{}",
+                    "-- white:\n{}"
+                    "-- black:\n{}",
                     get_square_name(square_bb),
                     bitboard_to_str(pieces_by_color_[color::WHITE]),
                     bitboard_to_str(pieces_by_color_[color::BLACK]));
@@ -139,7 +139,11 @@ std::string position::to_fen() const {
 }
 
 void position::print() const {
-  validate();
+  try {
+    validate();
+  } catch (...) {
+    std::cout << "INVALID\n";
+  }
 
   bool white = true;
   fmt::print(" a|b|c|d|e|f|g|h|\n");
@@ -151,18 +155,20 @@ void position::print() const {
       for (auto const& [i, piece] : utl::enumerate(piece_states_)) {
         auto const is_white = square_bb & pieces_by_color_[color::WHITE];
         if ((square_bb & piece) != 0U) {
-          fmt::print(fmt::emphasis::bold |
-                         (is_white ? fmt::fg(fmt::color::red)
-                                   : fmt::fg(fmt::color::blue)) |
-                         fmt::bg(white ? fmt::color::white : fmt::color::black),
-                     "{}", utf8_pieces[is_white ? 0 : 1][i]);
+          fmt::print(
+              fmt::emphasis::bold |
+                  (is_white ? fmt::fg(fmt::color::red)
+                            : fmt::fg(fmt::color::blue)) |
+                  fmt::bg(white ? fmt::color::white : fmt::color::light_gray),
+              "{}", utf8_pieces[is_white ? 0 : 1][i]);
           empty = false;
         }
       }
       if (empty) {
-        fmt::print(fmt::emphasis::bold |
-                       fmt::bg(white ? fmt::color::white : fmt::color::black),
-                   " ");
+        fmt::print(
+            fmt::emphasis::bold |
+                fmt::bg(white ? fmt::color::white : fmt::color::light_gray),
+            " ");
       }
       fmt::print("|");
       white = !white;
@@ -335,25 +341,7 @@ state_info position::make_move(std::string const& str,
 state_info position::make_move(std::string const& str,
                                state_info const* prev_state,
                                zobrist_t const prev_hash) {
-  auto const from_file = str[0] - 'a';
-  auto const from_rank = 8 - (str[1] - '0');
-  auto const to_file = str[2] - 'a';
-  auto const to_rank = 8 - (str[3] - '0');
-
-  auto promotion = promotion_piece_type::ROOK;
-  if (str.size() == 5) {
-    switch (str[4]) {
-      case 'Q': promotion = promotion_piece_type::QUEEN; break;
-      case 'R': promotion = promotion_piece_type::ROOK; break;
-      case 'B': promotion = promotion_piece_type::BISHOP; break;
-      case 'N': promotion = promotion_piece_type::KNIGHT; break;
-      default: utl::verify(false, "invalid promotion piece type {}", str[4]);
-    }
-  }
-
-  return make_move(move{rank_file_to_bitboard(from_rank, from_file),
-                        rank_file_to_bitboard(to_rank, to_file), promotion},
-                   prev_state, prev_hash);
+  return make_move(move{str}, prev_state, prev_hash);
 }
 
 state_info position::make_move(move const m, state_info const* const prev_state,
@@ -362,9 +350,12 @@ state_info position::make_move(move const m, state_info const* const prev_state,
   validate();
 #endif
 
+  assert(m.special_move_ != special_move::PROMOTION);
+
   auto info = state_info{en_passant_,      m,         castling_rights_,
                          half_move_clock_, prev_hash, prev_state};
   ++half_move_clock_;
+  en_passant_ = bitboard{};
 
   auto const from = m.from();
   auto const to = m.to();
@@ -405,6 +396,23 @@ state_info position::make_move(move const m, state_info const* const prev_state,
         half_move_clock_ = 0;
         pieces ^= to;
         pieces_by_color_[opposing_color()] ^= to;
+
+        switch (to) {
+          case rank_file_to_bitboard(R1, FH):
+            castling_rights_.white_can_short_castle_ = false;
+            break;
+          case rank_file_to_bitboard(R8, FH):
+            castling_rights_.black_can_short_castle_ = false;
+            break;
+          case rank_file_to_bitboard(R1, FA):
+            castling_rights_.white_can_long_castle_ = false;
+            break;
+          case rank_file_to_bitboard(R8, FA):
+            castling_rights_.black_can_long_castle_ = false;
+            break;
+          default: break;
+        }
+
         break;
       }
       ++pt;
@@ -418,20 +426,18 @@ state_info position::make_move(move const m, state_info const* const prev_state,
       }
     }
 
-    if (en_passant_ & to & piece_states_[PAWN]) {
-      auto const en_passant_capture_field = to_move_ == WHITE
-                                                ? en_passant_ << bitboard{8}
-                                                : en_passant_ >> bitboard{8};
+    if (info.en_passant_ & to & piece_states_[PAWN]) {
+      auto const en_passant_capture_field =
+          to_move_ == WHITE ? info.en_passant_ << bitboard{8}
+                            : info.en_passant_ >> bitboard{8};
       toggle_pieces(PAWN, to_move_ == WHITE ? BLACK : WHITE,
                     en_passant_capture_field);
     }
 
-    if ((to & pieces(to_move_, PAWN)) != 0U &&
+    if ((to & pieces(to_move_, PAWN)) &&
         std::abs(static_cast<int>(cista::trailing_zeros(from)) -
                  static_cast<int>(cista::trailing_zeros(to))) == 16) {
       en_passant_ = to_move_ == WHITE ? (from >> 8) : (from << 8);
-    } else {
-      en_passant_ = 0U;
     }
 
     if (m.special_move_ == special_move::PROMOTION) {
@@ -508,9 +514,11 @@ state_info position::make_move(move const m, state_info const* const prev_state,
 }
 
 void position::print_trace(state_info const* const info) const {
+  info->print_moves();
+  std::cout << "\n";
+
   auto const current_pos_hash = get_hash();
   std::cout << "CURR: " << info->last_move_ << "\n";
-  ;
   print();
   std::cout << "HASH=" << current_pos_hash << "\n";
 

@@ -18,24 +18,17 @@ uint64_t dfs(position& p, unsigned const current_depth,
     return 1U;
   }
 
+  auto const copy = p;
   auto leaf_nodes = uint64_t{0U};
-  auto const moves_possible = generate_moves(p, [&](move const m) {
+  generate_moves(p, [&](move const m) {
     auto const s = p.make_move(m, info_ptr, current_pos_hash);
     auto const leaves = dfs(p, current_depth + 1, max_depth, &s);
-
     if (current_depth == 0U) {
-      std::cout << m << " " << leaves << "\n";
+      std::cout << m << ": " << leaves << "\n";
     }
-
     leaf_nodes += leaves;
-    p.undo_move(s);
+    p = copy;
   });
-
-  if (!moves_possible && !is_valid_move(p, move{0, 0})) {
-    // check mate
-    //    return 1U;
-  }
-
   return leaf_nodes;
 }
 
@@ -46,7 +39,8 @@ int main(int argc, char** argv) {
   }
 
   auto const depth = std::stoi(argv[1]);
-  auto const fen = argv[2];
+  auto const fen =
+      std::string_view{argv[2]} == "startpos" ? start_position_fen : argv[2];
 
   auto in = std::stringstream{fen};
   auto p = chessbot::position{};
@@ -67,5 +61,5 @@ int main(int argc, char** argv) {
   auto const result = dfs(p, 0, depth, prev_state_info());
   CHESSBOT_STOP_TIMING(dfs);
   std::cout << "\n" << result << "\n";
-  //  std::cout << CHESSBOT_TIMING_MS(dfs) << "ms\n";
+  std::cout << CHESSBOT_TIMING_MS(dfs) << "ms\n";
 }

@@ -8,6 +8,8 @@
 #include "chessbot/generate_moves.h"
 #include "chessbot/position.h"
 
+#include "./test_position.h"
+
 using namespace chessbot;
 
 std::set<std::string> print_all_positions_after_move(position const& p) {
@@ -591,5 +593,70 @@ TEST_CASE("white short castle with knight f2") {
 
   auto moves = std::set<std::string>{};
   generate_moves(p, [&](move const m) { moves.emplace(m.to_str()); });
-  CHECK(moves.find("O-O") != end(moves));
+  CHECK(moves.find("e1g1") != end(moves));
+}
+
+TEST_CASE("black cannot castle rook captured") {
+  constexpr auto const fen =
+      "rnbqk2r/pppppp1p/5B1b/6p1/8/1P6/P1PPPPPP/RN1QKBNR w KQkq - 1 4";
+
+  auto in = std::stringstream{fen};
+
+  auto p = position{};
+  in >> p;
+  p.make_move("f6h8", nullptr);
+
+  auto moves = std::set<std::string>{};
+  generate_moves(p, [&](move const m) { moves.emplace(m.to_str()); });
+  CHECK(moves.find("e8g8") == end(moves));
+}
+
+TEST_CASE("invalid state") {
+  auto p = test_position{start_position_fen};
+  p.print();
+
+  p.make_move("e2e3");
+  std::cout << "e2e3\n";
+  p.print();
+
+  p.make_move("e7e5");
+  std::cout << "e7e5\n";
+  p.print();
+
+  p.make_move("g1f3");
+  std::cout << "g1f3\n";
+  p.print();
+
+  p.make_move("a7a6");
+  std::cout << "a7a6\n";
+  p.print();
+
+  p.make_move("f1a6");
+  std::cout << "f1a6\n";
+  p.print();
+
+  std::cout << "\nUNDO\n";
+  p.undo_move();
+  p.print();
+
+  std::cout << "\nTRACE\n";
+  p.print_trace();
+  p.validate();
+}
+
+TEST_CASE("en passant") {
+  auto p = test_position{start_position_fen};
+  p.print();
+
+  p.make_move("e2e3");
+  p.make_move("e7e5");
+  p.make_move("e3e4");
+  p.make_move("a7a6");
+  p.make_move("d2d4");
+  p.make_move("e5d4");
+  p.make_move("c2c4");
+
+  auto moves = std::set<std::string>{};
+  generate_moves(p, [&](move const m) { moves.emplace(m.to_str()); });
+  CHECK(moves.find("d4c3") != end(moves));
 }
