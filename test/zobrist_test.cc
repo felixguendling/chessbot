@@ -1,34 +1,52 @@
 #include "doctest/doctest.h"
 
 #include <iostream>
+#include <memory>
 #include <sstream>
+#include <vector>
 
 #include "chessbot/constants.h"
+#include "chessbot/generate_moves.h"
 #include "chessbot/position.h"
 
 using namespace chessbot;
 
+struct test_position : position {
+  explicit test_position(std::string const& fen)
+      : position{position::from_fen(start_position_fen)} {}
+
+  void make_move(std::string const& s) {
+    auto const& m =
+        states_.emplace_back(std::make_unique<state_info>(position::make_move(
+            s, states_.empty() ? nullptr : states_.back().get())));
+  }
+
+  unsigned count_repetitions() const {
+    return chessbot::count_repetitions(*this, states_.back().get(), get_hash());
+  }
+
+  void print_trace() const { position::print_trace(states_.back().get()); }
+
+  std::vector<std::unique_ptr<state_info>> states_;
+};
+
 TEST_CASE("check repetition en passant") {
-  auto in = std::stringstream{start_position_fen};
-
-  auto p = chessbot::position{};
-  in >> p;
-
-  p.make_move("e2e3");  // half move count = 0
-  p.make_move("e7e5");  // half move count = 0, en passant square = e6
+  auto p = test_position{start_position_fen};
+  p.make_move("e2e3");
+  p.make_move("e7e5");
 
   auto repeat = [&p, i = 0]() mutable {
     p.make_move("g1f3");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("b8c6");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("f3g1");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("c6b8");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     ++i;
   };
@@ -40,78 +58,70 @@ TEST_CASE("check repetition en passant") {
 }
 
 TEST_CASE("check repetition castling") {
-  auto in = std::stringstream{start_position_fen};
+  auto p = test_position{start_position_fen};
 
-  auto p = chessbot::position{};
-  in >> p;
   p.make_move("g1f3");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("b8c6");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("f3g1");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("c6b8");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 
   p.make_move("g1f3");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 
   p.make_move("b8c6");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 
   p.make_move("h1g1");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("a8b8");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("g1h1");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("b8a8");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("h1g1");
-  CHECK(p.new_repetitions() == 0);
+  CHECK(p.count_repetitions() == 0);
 
   p.make_move("a8b8");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 
   p.make_move("g1h1");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 
   p.make_move("b8a8");
-  CHECK(p.new_repetitions() == 1);
+  CHECK(p.count_repetitions() == 1);
 }
 
 TEST_CASE("check repetition undo") {
-  auto in = std::stringstream{start_position_fen};
+  auto p = test_position{start_position_fen};
 
-  auto p = chessbot::position{};
-  in >> p;
-
-  auto const s = p.make_move("e2e3");
-  p.undo_move(s);
-  std::cout << "HALF MOVE CLOCK AFTER UNDO: " << (int)p.half_move_clock_
-            << "\n";
-  std::cout << "HASH AFTER UNDO: " << p.hashes_[p.half_move_clock_] << "\n";
-  std::cout << "FEN AFTER UNDO: " << p.to_fen() << "\n";
+  p.make_move("e2e3");
+  p.undo_move(*p.states_.back());
+  p.states_.resize(p.states_.size() - 1U);
 
   auto repeat = [&p, i = 0]() mutable {
     p.make_move("g1f3");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("b8c6");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("f3g1");
-    CHECK(p.new_repetitions() == i);
+    CHECK(p.count_repetitions() == i);
 
     p.make_move("c6b8");
-    CHECK(p.new_repetitions() == ++i);
+    CHECK(p.count_repetitions() == ++i);
   };
 
   repeat();

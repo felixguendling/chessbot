@@ -13,9 +13,10 @@ using namespace chessbot;
 std::set<std::string> print_all_positions_after_move(position const& p) {
   p.validate();
   std::set<std::string> prints;
-  for_each_possible_move(p, [&](move const& m) {
+  generate_moves(p, [&](move const& m) {
     auto copy = position{p};
-    auto const info = copy.make_move(m);
+    auto const s = copy.to_state_info();
+    auto const info = copy.make_move(m, &s, p.get_hash());
     prints.emplace(copy.to_str());
 
     copy.undo_move(info);
@@ -26,9 +27,10 @@ std::set<std::string> print_all_positions_after_move(position const& p) {
 
 std::set<std::string> fen_strings_after_move(position const& p) {
   std::set<std::string> prints;
-  for_each_possible_move(p, [&](move const& m) {
+  generate_moves(p, [&](move const& m) {
     auto copy = position{p};
-    auto const info = copy.make_move(m);
+    auto const s = copy.to_state_info();
+    auto const info = copy.make_move(m, &s, p.get_hash());
     prints.emplace(copy.to_fen());
     copy.undo_move(info);
     CHECK(p.to_fen() == copy.to_fen());
@@ -501,8 +503,8 @@ TEST_CASE("make move from string") {
   auto p = position{};
   in >> p;
 
-  p.make_move("e2e3");
-  p.make_move("e7e6");
+  p.make_move("e2e3", nullptr);
+  p.make_move("e7e6", nullptr);
 
   CHECK(p.to_fen() ==
         "rnbqkbnr/pppp1ppp/4p3/8/8/4P3/PPPP1PPP/RNBQKBNR w KQkq - 0 2");
@@ -554,4 +556,40 @@ TEST_CASE("escape check en passant") {
 
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{"8/1k6/4P3/1K3p1r/7r/1n6/8/8 b - - 0 1"});
+}
+
+TEST_CASE("detect check mate") {
+  constexpr auto const scholars_mate_fen =
+      "r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 5 3";
+  auto in = std::stringstream{scholars_mate_fen};
+
+  auto p = position{};
+  in >> p;
+
+  CHECK(fen_strings_after_move(p).empty());
+  CHECK(!is_valid_move(p, move{0U, 0U}));
+}
+
+TEST_CASE("detect non check mate") {
+  auto in = std::stringstream{start_position_fen};
+
+  auto p = position{};
+  in >> p;
+
+  CHECK(!fen_strings_after_move(p).empty());
+  CHECK(is_valid_move(p, move{0U, 0U}));
+}
+
+TEST_CASE("white short castle with knight f2") {
+  constexpr auto const fen =
+      "rnbqkb1r/pppppppp/B7/8/8/8/PPPPNnPP/RNBQK2R w KQkq - 0 4";
+
+  auto in = std::stringstream{fen};
+
+  auto p = position{};
+  in >> p;
+
+  auto moves = std::set<std::string>{};
+  generate_moves(p, [&](move const m) { moves.emplace(m.to_str()); });
+  CHECK(moves.find("O-O") != end(moves));
 }

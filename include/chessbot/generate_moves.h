@@ -13,6 +13,10 @@
 namespace chessbot {
 
 inline bool is_valid_move(position const& p, move const m) {
+  if (m.special_move_ == special_move::CASTLE) {
+    return true;
+  }
+
   auto const king_bb = p.pieces(p.to_move_, piece_type::KING);
   auto const from = m.from();
   auto const to = m.to();
@@ -40,6 +44,7 @@ inline bool is_valid_move(position const& p, move const m) {
       (pawn_attacks() & king)) {
     return false;
   }
+
   auto occupancy_after_move_bb = (p.all_pieces() & ~from) | to;
   if (p.en_passant_ == to && from & p.pieces(p.to_move_, piece_type::PAWN)) {
     occupancy_after_move_bb &=
@@ -56,6 +61,7 @@ inline bool is_valid_move(position const& p, move const m) {
                 ~to))) {
     return false;
   }
+
   return true;
 }
 
@@ -69,28 +75,46 @@ void for_each_set_bit(bitboard bb, Fn&& f) {
   }
 }
 
+inline unsigned count_repetitions(position const& p,
+                                  state_info const* const info,
+                                  zobrist_t const current_pos_hash) {
+  auto repetitions = 0U;
+  auto half_moves = p.half_move_clock_;
+  auto curr_state = info;
+  while (curr_state != nullptr && half_moves != 0U) {
+    if (curr_state->prev_hash_ == current_pos_hash) {
+      ++repetitions;
+    }
+    curr_state = curr_state->prev_state_info_;
+    --half_moves;
+  }
+  return repetitions;
+}
+
 template <typename Fn>
-void for_each_possible_move(position const& p, Fn&& f) {
+bool generate_moves(position const& p, Fn&& f) {
   auto const own_pieces = p.pieces_by_color_[p.to_move_];
   auto const opposing_pieces = p.pieces_by_color_[p.opposing_color()];
   auto const all_pieces = own_pieces | opposing_pieces;
+  auto f_called = false;
 
   auto const call_f_for_valid_move = [&](move const m) {
     if (is_valid_move(p, m)) {
+      f_called = true;
       f(m);
     }
   };
 
   auto const move_pawn_with_promotion_check = [&](move m) {
     if (m.to() & (full_rank_bitboard(R1) | full_rank_bitboard(R8))) {
-      m.special_move_ = move::special_move::PROMOTION;
-      m.promotion_piece_type_ = move::promotion_piece_type::KNIGHT;
+      m.special_move_ = special_move::PROMOTION;
+      m.promotion_piece_type_ = promotion_piece_type::KNIGHT;
       call_f_for_valid_move(m);
-      m.promotion_piece_type_ = move::promotion_piece_type::ROOK;
+      m.promotion_piece_type_ = promotion_piece_type::ROOK;
       call_f_for_valid_move(m);
-      m.promotion_piece_type_ = move::promotion_piece_type::BISHOP;
+      m.promotion_piece_type_ = promotion_piece_type::BISHOP;
       call_f_for_valid_move(m);
-      m.promotion_piece_type_ = move::promotion_piece_type::QUEEN;
+      m.promotion_piece_type_ = promotion_piece_type::QUEEN;
       call_f_for_valid_move(m);
     } else {
       call_f_for_valid_move(m);
@@ -243,15 +267,18 @@ void for_each_possible_move(position const& p, Fn&& f) {
   if (can_short_castle()) {
     auto m = move{rank_file_to_bitboard(active_player_first_rank, FE),
                   rank_file_to_bitboard(active_player_first_rank, FH)};
-    m.special_move_ = move::special_move::CASTLE;
+    m.special_move_ = special_move::CASTLE;
     call_f_for_valid_move(m);
   }
 
   if (can_long_castle()) {
     auto m = move{rank_file_to_bitboard(active_player_first_rank, FE),
                   rank_file_to_bitboard(active_player_first_rank, FA)};
-    m.special_move_ = move::special_move::CASTLE;
+    m.special_move_ = special_move::CASTLE;
     call_f_for_valid_move(m);
   }
+
+  return f_called;
 }
+
 }  // namespace chessbot

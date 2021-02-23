@@ -21,28 +21,51 @@ struct castling_rights {
 };
 
 struct state_info {
-  explicit state_info(bitboard ep, move m, castling_rights cr, uint8_t hmc)
+  explicit state_info(bitboard ep, move m, castling_rights cr, uint8_t hmc,
+                      zobrist_t const prev_hash,
+                      state_info const* prev_state_info)
       : en_passant_{ep},
         last_move_{m},
         castling_rights_{cr},
-        half_move_clock_{hmc} {}
+        half_move_clock_{hmc},
+        prev_hash_{prev_hash},
+        prev_state_info_{prev_state_info} {}
+
+  void print_moves() const;
+
+  template <typename Fn>
+  void for_each_pred(Fn&& f) const {
+    auto curr_state = this;
+    while (curr_state != nullptr) {
+      f(*curr_state);
+      curr_state = curr_state->prev_state_info_;
+    }
+  }
+
   bitboard en_passant_;
   move last_move_;
   piece_type captured_piece_{piece_type::NUM_PIECE_TYPES};
   castling_rights castling_rights_;
-  uint8_t half_move_clock_;
+  uint8_t half_move_clock_{0U};
+  zobrist_t prev_hash_{0U};
+  state_info const* prev_state_info_{nullptr};
 };
 
 struct position {
   friend std::ostream& operator<<(std::ostream&, position const&);
   friend std::istream& operator>>(std::istream&, position&);
+  static position from_fen(std::string const&);
 
   void print() const;
-  state_info make_move(std::string const&);
-  state_info make_move(move);
+  state_info make_move(std::string const&, state_info const* prev_state);
+  state_info make_move(std::string const&, state_info const* prev_state,
+                       zobrist_t prev_hash);
+  state_info make_move(move, state_info const* prev_state, zobrist_t);
   void undo_move(state_info);
   std::string to_str() const;
   std::string to_fen() const;
+  state_info to_state_info() const;
+  void print_trace(state_info const* info) const;
   void validate() const;
 
   color opposing_color() const {
@@ -73,8 +96,7 @@ struct position {
                              : castling_rights_.black_can_long_castle_;
   }
 
-  void add_hash();
-  unsigned new_repetitions();
+  zobrist_t get_hash() const;
 
   std::array<bitboard, NUM_PIECE_TYPES> piece_states_{};
   std::array<bitboard, 2> pieces_by_color_{};
@@ -82,8 +104,6 @@ struct position {
   uint8_t half_move_clock_{0U};
   unsigned full_move_count_{0U};
   color to_move_{color::WHITE};
-  std::array<zobrist_t, 50> hashes_;
-
   castling_rights castling_rights_;
 };
 

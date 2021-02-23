@@ -15,7 +15,7 @@ target_link_libraries(chessbot utl cista)
 target_include_directories(chessbot PUBLIC include)
 target_compile_features(chessbot PUBLIC cxx_std_20)
 
-add_executable(chessbot-exe ${chessbot-files})
+add_executable(chessbot-exe ${main-file})
 target_link_libraries(chessbot-exe chessbot)
 
 add_executable(chessbot-test ${chessbot-test-files})

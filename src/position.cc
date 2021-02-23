@@ -14,6 +14,11 @@
 
 namespace chessbot {
 
+void state_info::print_moves() const {
+  for_each_pred(
+      [](state_info const& pred) { std::cout << pred.last_move_ << " "; });
+}
+
 void position::validate() const {
   auto const all_pieces =
       piece_states_[piece_type::PAWN] | piece_states_[piece_type::KNIGHT] |
@@ -60,6 +65,13 @@ void position::validate() const {
       }
     }
   }
+}
+
+position position::from_fen(std::string const& fen) {
+  auto ss = std::stringstream{fen};
+  auto p = position{};
+  ss >> p;
+  return p;
 }
 
 std::string position::to_fen() const {
@@ -298,7 +310,6 @@ std::istream& operator>>(std::istream& in, position& p) {
 
       case FULLMOVE_NUMBER:
         in >> p.full_move_count_;
-        p.add_hash();
         p.validate();
         return in;
     }
@@ -311,22 +322,49 @@ std::string position::to_str() const {
   return ss.str();
 }
 
-state_info position::make_move(std::string const& str) {
+state_info position::to_state_info() const {
+  return state_info{en_passant_,      move{0U, 0U}, castling_rights_,
+                    half_move_clock_, get_hash(),   nullptr};
+}
+
+state_info position::make_move(std::string const& str,
+                               state_info const* prev_state) {
+  return make_move(str, prev_state, get_hash());
+}
+
+state_info position::make_move(std::string const& str,
+                               state_info const* prev_state,
+                               zobrist_t const prev_hash) {
   auto const from_file = str[0] - 'a';
   auto const from_rank = 8 - (str[1] - '0');
   auto const to_file = str[2] - 'a';
   auto const to_rank = 8 - (str[3] - '0');
+
+  auto promotion = promotion_piece_type::ROOK;
+  if (str.size() == 5) {
+    switch (str[4]) {
+      case 'Q': promotion = promotion_piece_type::QUEEN; break;
+      case 'R': promotion = promotion_piece_type::ROOK; break;
+      case 'B': promotion = promotion_piece_type::BISHOP; break;
+      case 'N': promotion = promotion_piece_type::KNIGHT; break;
+      default: utl::verify(false, "invalid promotion piece type {}", str[4]);
+    }
+  }
+
   return make_move(move{rank_file_to_bitboard(from_rank, from_file),
-                        rank_file_to_bitboard(to_rank, to_file)});
+                        rank_file_to_bitboard(to_rank, to_file), promotion},
+                   prev_state, prev_hash);
 }
 
-state_info position::make_move(move const m) {
+state_info position::make_move(move const m, state_info const* const prev_state,
+                               zobrist_t const prev_hash) {
 #ifndef NDEBUG
   validate();
 #endif
 
-  auto info = state_info{en_passant_, m, castling_rights_, half_move_clock_};
-  half_move_clock_++;
+  auto info = state_info{en_passant_,      m,         castling_rights_,
+                         half_move_clock_, prev_hash, prev_state};
+  ++half_move_clock_;
 
   auto const from = m.from();
   auto const to = m.to();
@@ -335,7 +373,7 @@ state_info position::make_move(move const m) {
     half_move_clock_ = 0;
   }
 
-  if (m.special_move_ == move::special_move::CASTLE) {
+  if (m.special_move_ == special_move::CASTLE) {
     half_move_clock_ = 0;
     auto const active_player_first_rank = to_move_ == color::WHITE ? R1 : R8;
     toggle_pieces(KING, to_move_, from);
@@ -396,19 +434,19 @@ state_info position::make_move(move const m) {
       en_passant_ = 0U;
     }
 
-    if (m.special_move_ == move::special_move::PROMOTION) {
+    if (m.special_move_ == special_move::PROMOTION) {
       toggle_pieces(PAWN, to_move_, to);
       switch (m.promotion_piece_type_) {
-        case move::promotion_piece_type::QUEEN:
+        case promotion_piece_type::QUEEN:
           toggle_pieces(QUEEN, to_move_, to);
           break;
-        case move::promotion_piece_type::ROOK:
+        case promotion_piece_type::ROOK:
           toggle_pieces(ROOK, to_move_, to);
           break;
-        case move::promotion_piece_type::BISHOP:
+        case promotion_piece_type::BISHOP:
           toggle_pieces(BISHOP, to_move_, to);
           break;
-        case move::promotion_piece_type::KNIGHT:
+        case promotion_piece_type::KNIGHT:
           toggle_pieces(KNIGHT, to_move_, to);
           break;
       }
@@ -466,9 +504,44 @@ state_info position::make_move(move const m) {
 
   to_move_ = opposing_color();
 
-  add_hash();
-
   return info;
+}
+
+void position::print_trace(state_info const* const info) const {
+  auto const current_pos_hash = get_hash();
+  std::cout << "CURR: " << info->last_move_ << "\n";
+  ;
+  print();
+  std::cout << "HASH=" << current_pos_hash << "\n";
+
+  auto copy_p = *this;
+  auto i = 1U;
+  auto repetitions = 0U;
+  auto curr_state = info;
+  while (curr_state != nullptr && ++i < 150) {
+    copy_p.undo_move(*curr_state);
+    if (curr_state->prev_hash_ == current_pos_hash) {
+      ++repetitions;
+    }
+
+    std::cout << "\nN-" << i << ": " << curr_state->last_move_ << "\n";
+    try {
+      copy_p.print();
+    } catch (std::exception const& e) {
+      std::cout << "BAD STATE - VERIFY FAILED\n";
+    }
+    std::cout << "STORED_HASH=" << curr_state->prev_hash_ << "\n"
+              << "COMPUT_HASH=" << copy_p.get_hash() << "\n"
+              << "REPETITIONS=" << repetitions << "\n";
+
+    curr_state = curr_state->prev_state_info_;
+  }
+
+  if (i == 150) {
+    std::cout << "\nABORT!!!\n";
+  } else {
+    std::cout << "FIN " << curr_state << "\n";
+  }
 }
 
 void position::undo_move(state_info const info) {
@@ -482,7 +555,7 @@ void position::undo_move(state_info const info) {
   auto const to = info.last_move_.to();
   auto const from = info.last_move_.from();
 
-  if (info.last_move_.special_move_ == move::special_move::CASTLE) {
+  if (info.last_move_.special_move_ == special_move::CASTLE) {
     auto const king_squares_bb =
         (to & full_file_bitboard(FH))
             ? from | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FG)
@@ -516,7 +589,7 @@ void position::undo_move(state_info const info) {
         pt_bb ^= to;
         pieces_by_color_[opposing_color()] ^= to | from;
         auto& promotion_bb =
-            info.last_move_.special_move_ == move::special_move::PROMOTION
+            info.last_move_.special_move_ == special_move::PROMOTION
                 ? piece_states_[piece_type::PAWN]
                 : pt_bb;
         promotion_bb ^= from;
@@ -534,7 +607,7 @@ void position::undo_move(state_info const info) {
   to_move_ = opposing_color();
 }
 
-void position::add_hash() {
+zobrist_t position::get_hash() const {
   auto hash = zobrist_t{};
 
   for (auto const& [pt, piece_state_bb] : utl::enumerate(piece_states_)) {
@@ -569,19 +642,7 @@ void position::add_hash() {
     hash ^= en_passant_hashes[en_passant_ % 8];
   }
 
-  hashes_[half_move_clock_ + 1] = hash;
-
-  std::cout << to_fen() << "\n";
-  print();
-  std::cout << hash << "\n\n";
-}
-
-unsigned position::new_repetitions() {
-  if (half_move_clock_ == 0U) {
-    return 0U;
-  }
-  return std::count(begin(hashes_), begin(hashes_) + half_move_clock_ - 1,
-                    hashes_[half_move_clock_]);
+  return hash;
 }
 
 }  // namespace chessbot
