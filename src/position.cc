@@ -316,6 +316,7 @@ std::istream& operator>>(std::istream& in, position& p) {
 
       case FULLMOVE_NUMBER:
         in >> p.full_move_count_;
+        p.hash_ = compute_hash(p);
         p.validate();
         return in;
     }
@@ -328,33 +329,19 @@ std::string position::to_str() const {
   return ss.str();
 }
 
-state_info position::to_state_info() const {
-  return state_info{en_passant_,      move{0U, 0U}, castling_rights_,
-                    half_move_clock_, get_hash(),   nullptr};
-}
-
-state_info position::make_move(std::string const& str,
-                               state_info const* prev_state) {
-  return make_move(str, prev_state, get_hash());
-}
-
-state_info position::make_move(std::string const& str,
-                               state_info const* prev_state,
-                               zobrist_t const prev_hash) {
-  return make_move(move{str}, prev_state, prev_hash);
-}
-
-state_info position::make_move(move const m, state_info const* const prev_state,
-                               zobrist_t const prev_hash) {
+state_info position::make_move(move const m,
+                               state_info const* const prev_state) {
 #ifndef NDEBUG
   validate();
 #endif
 
-  assert(m.special_move_ != special_move::PROMOTION);
-
-  auto info = state_info{en_passant_,      m,         castling_rights_,
-                         half_move_clock_, prev_hash, prev_state};
+  auto info = state_info{en_passant_,      m,     castling_rights_,
+                         half_move_clock_, hash_, prev_state};
   ++half_move_clock_;
+
+  if (en_passant_) {
+    hash_ ^= zobrist_en_passant_hashes[en_passant_ % 8];
+  }
   en_passant_ = bitboard{};
 
   auto const from = m.from();
@@ -384,9 +371,13 @@ state_info position::make_move(move const m, state_info const* const prev_state,
     if (to_move_ == color::WHITE) {
       castling_rights_.white_can_short_castle_ = false;
       castling_rights_.white_can_long_castle_ = false;
+      hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_SHORT];
+      hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_LONG];
     } else {
       castling_rights_.black_can_short_castle_ = false;
       castling_rights_.black_can_long_castle_ = false;
+      hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_SHORT];
+      hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_LONG];
     }
   } else {
     auto pt = 0U;
@@ -399,15 +390,19 @@ state_info position::make_move(move const m, state_info const* const prev_state,
 
         switch (to) {
           case rank_file_to_bitboard(R1, FH):
+            hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_SHORT];
             castling_rights_.white_can_short_castle_ = false;
             break;
           case rank_file_to_bitboard(R8, FH):
+            hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_SHORT];
             castling_rights_.black_can_short_castle_ = false;
             break;
           case rank_file_to_bitboard(R1, FA):
+            hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_LONG];
             castling_rights_.white_can_long_castle_ = false;
             break;
           case rank_file_to_bitboard(R8, FA):
+            hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_LONG];
             castling_rights_.black_can_long_castle_ = false;
             break;
           default: break;
@@ -418,12 +413,14 @@ state_info position::make_move(move const m, state_info const* const prev_state,
       ++pt;
     }
 
+    pt = 0U;
     for (auto& pieces : piece_states_) {
       if ((pieces & pieces_by_color_[to_move_] & from) != 0U) {
-        pieces_by_color_[to_move_] ^= (from | to);
-        pieces ^= (from | to);
+        toggle_pieces(static_cast<piece_type>(pt), to_move_, from);
+        toggle_pieces(static_cast<piece_type>(pt), to_move_, to);
         break;
       }
+      ++pt;
     }
 
     if (info.en_passant_ & to & piece_states_[PAWN]) {
@@ -438,6 +435,8 @@ state_info position::make_move(move const m, state_info const* const prev_state,
         std::abs(static_cast<int>(cista::trailing_zeros(from)) -
                  static_cast<int>(cista::trailing_zeros(to))) == 16) {
       en_passant_ = to_move_ == WHITE ? (from >> 8) : (from << 8);
+      hash_ ^=
+          zobrist_en_passant_hashes[cista::trailing_zeros(en_passant_) % 8];
     }
 
     if (m.special_move_ == special_move::PROMOTION) {
@@ -459,47 +458,60 @@ state_info position::make_move(move const m, state_info const* const prev_state,
     }
 
     if (to & pieces(to_move_, ROOK)) {
-      if (from & rank_file_to_bitboard(R1, FA)) {
-        if (castling_rights_.white_can_long_castle_) {
-          half_move_clock_ = 0;
-        }
-        castling_rights_.white_can_long_castle_ = false;
-      }
       if (from & rank_file_to_bitboard(R1, FH)) {
         if (castling_rights_.white_can_short_castle_) {
+          castling_rights_.white_can_short_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_SHORT];
           half_move_clock_ = 0;
         }
-        castling_rights_.white_can_short_castle_ = false;
       }
-      if (from & rank_file_to_bitboard(R8, FA)) {
-        if (castling_rights_.black_can_long_castle_) {
+      if (from & rank_file_to_bitboard(R1, FA)) {
+        if (castling_rights_.white_can_long_castle_) {
+          castling_rights_.white_can_long_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_LONG];
           half_move_clock_ = 0;
         }
-        castling_rights_.black_can_long_castle_ = false;
       }
       if (from & rank_file_to_bitboard(R8, FH)) {
         if (castling_rights_.black_can_short_castle_) {
+          castling_rights_.black_can_short_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_SHORT];
           half_move_clock_ = 0;
         }
-        castling_rights_.black_can_short_castle_ = false;
+      }
+      if (from & rank_file_to_bitboard(R8, FA)) {
+        if (castling_rights_.black_can_long_castle_) {
+          castling_rights_.black_can_long_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_LONG];
+          half_move_clock_ = 0;
+        }
       }
     }
 
     if (to & pieces(to_move_, KING)) {
       if (to_move_ == color::WHITE) {
-        if (castling_rights_.white_can_short_castle_ ||
-            castling_rights_.white_can_long_castle_) {
+        if (castling_rights_.white_can_short_castle_) {
+          castling_rights_.white_can_short_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_SHORT];
           half_move_clock_ = 0;
         }
-        castling_rights_.white_can_long_castle_ = false;
-        castling_rights_.white_can_short_castle_ = false;
+
+        if (castling_rights_.white_can_long_castle_) {
+          castling_rights_.white_can_long_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::WHITE_LONG];
+          half_move_clock_ = 0;
+        }
       } else {
-        if (castling_rights_.black_can_short_castle_ ||
-            castling_rights_.black_can_long_castle_) {
+        if (castling_rights_.black_can_short_castle_) {
+          castling_rights_.black_can_short_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_SHORT];
           half_move_clock_ = 0;
         }
-        castling_rights_.black_can_long_castle_ = false;
-        castling_rights_.black_can_short_castle_ = false;
+        if (castling_rights_.black_can_long_castle_) {
+          castling_rights_.black_can_long_castle_ = false;
+          hash_ ^= zobrist_castling_right_hashes[castling_right::BLACK_LONG];
+          half_move_clock_ = 0;
+        }
       }
     }
   }
@@ -509,6 +521,7 @@ state_info position::make_move(move const m, state_info const* const prev_state,
   }
 
   to_move_ = opposing_color();
+  hash_ = ~hash_;
 
   return info;
 }
@@ -516,141 +529,6 @@ state_info position::make_move(move const m, state_info const* const prev_state,
 void position::print_trace(state_info const* const info) const {
   info->print_moves();
   std::cout << "\n";
-
-  auto const current_pos_hash = get_hash();
-  std::cout << "CURR: " << info->last_move_ << "\n";
-  print();
-  std::cout << "HASH=" << current_pos_hash << "\n";
-
-  auto copy_p = *this;
-  auto i = 1U;
-  auto repetitions = 0U;
-  auto curr_state = info;
-  while (curr_state != nullptr && ++i < 150) {
-    copy_p.undo_move(*curr_state);
-    if (curr_state->prev_hash_ == current_pos_hash) {
-      ++repetitions;
-    }
-
-    std::cout << "\nN-" << i << ": " << curr_state->last_move_ << "\n";
-    try {
-      copy_p.print();
-    } catch (std::exception const& e) {
-      std::cout << "BAD STATE - VERIFY FAILED\n";
-    }
-    std::cout << "STORED_HASH=" << curr_state->prev_hash_ << "\n"
-              << "COMPUT_HASH=" << copy_p.get_hash() << "\n"
-              << "REPETITIONS=" << repetitions << "\n";
-
-    curr_state = curr_state->prev_state_info_;
-  }
-
-  if (i == 150) {
-    std::cout << "\nABORT!!!\n";
-  } else {
-    std::cout << "FIN " << curr_state << "\n";
-  }
-}
-
-void position::undo_move(state_info const info) {
-  if (to_move_ == color::WHITE) {
-    --full_move_count_;
-  }
-  castling_rights_ = info.castling_rights_;
-  half_move_clock_ = info.half_move_clock_;
-  en_passant_ = info.en_passant_;
-
-  auto const to = info.last_move_.to();
-  auto const from = info.last_move_.from();
-
-  if (info.last_move_.special_move_ == special_move::CASTLE) {
-    auto const king_squares_bb =
-        (to & full_file_bitboard(FH))
-            ? from | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FG)
-                                               : rank_file_to_bitboard(R1, FG))
-            : from | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FC)
-                                               : rank_file_to_bitboard(R1, FC));
-    piece_states_[piece_type::KING] ^= king_squares_bb;
-    pieces_by_color_[opposing_color()] ^= king_squares_bb;
-
-    auto const rook_squares_bb =
-        (to & full_file_bitboard(FH))
-            ? to | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FF)
-                                             : rank_file_to_bitboard(R1, FF))
-            : to | (to_move_ == color::WHITE ? rank_file_to_bitboard(R8, FD)
-                                             : rank_file_to_bitboard(R1, FD));
-    piece_states_[piece_type::ROOK] ^= rook_squares_bb;
-    pieces_by_color_[opposing_color()] ^= rook_squares_bb;
-  } else {
-    // Restore en passant captured pawn.
-    if (piece_states_[PAWN] & to & en_passant_) {
-      auto const captured_pawn = to_move_ == color::WHITE
-                                     ? north_west(to, 1, 0)
-                                     : north_west(to, -1, 0);
-      piece_states_[PAWN] |= captured_pawn;
-      pieces_by_color_[to_move_] |= captured_pawn;
-    }
-
-    // Restore moving piece at its original square.
-    for (auto& pt_bb : piece_states_) {
-      if (to & pt_bb) {
-        pt_bb ^= to;
-        pieces_by_color_[opposing_color()] ^= to | from;
-        auto& promotion_bb =
-            info.last_move_.special_move_ == special_move::PROMOTION
-                ? piece_states_[piece_type::PAWN]
-                : pt_bb;
-        promotion_bb ^= from;
-        break;
-      }
-    }
-
-    // Restore captured piece.
-    if (info.captured_piece_ != piece_type::NUM_PIECE_TYPES) {
-      piece_states_[info.captured_piece_] |= to;
-      pieces_by_color_[to_move_] |= to;
-    }
-  }
-
-  to_move_ = opposing_color();
-}
-
-zobrist_t position::get_hash() const {
-  auto hash = zobrist_t{};
-
-  for (auto const& [pt, piece_state_bb] : utl::enumerate(piece_states_)) {
-    auto const piece_type_idx = pt;
-    for_each_set_bit(piece_state_bb, [&](bitboard const piece_bb) {
-      auto const color = pieces_by_color_[color::WHITE] & piece_bb
-                             ? color::WHITE
-                             : color::BLACK;
-      auto const square_idx = cista::trailing_zeros(piece_bb);
-      hash ^= zobrist_piece_hashes[square_idx][color][piece_type_idx];
-    });
-  }
-
-  if (castling_rights_.white_can_short_castle_) {
-    hash ^= zobrist_castling_rights_hashes[0];
-  }
-  if (castling_rights_.white_can_long_castle_) {
-    hash ^= zobrist_castling_rights_hashes[1];
-  }
-  if (castling_rights_.black_can_short_castle_) {
-    hash ^= zobrist_castling_rights_hashes[2];
-  }
-  if (castling_rights_.black_can_long_castle_) {
-    hash ^= zobrist_castling_rights_hashes[3];
-  }
-
-  if (to_move_ == color::BLACK) {
-    hash = ~hash;
-  }
-
-  if (en_passant_) {
-    hash ^= en_passant_hashes[en_passant_ % 8];
-  }
-
-  return hash;
 }
 
 }  // namespace chessbot

@@ -14,19 +14,14 @@ struct test_position : public position {
   void make_move(std::string const& s) {
     auto const& m =
         states_.emplace_back(std::make_unique<state_info>(position::make_move(
-            s, states_.empty() ? nullptr : states_.back().get())));
+            move{s}, states_.empty() ? nullptr : states_.back().get())));
   }
 
   unsigned count_repetitions() const {
-    return chessbot::count_repetitions(*this, states_.back().get(), get_hash());
+    return chessbot::count_repetitions(*this, states_.back().get());
   }
 
   void print_trace() const { position::print_trace(states_.back().get()); }
-
-  void undo_move() {
-    position::undo_move(*states_.back());
-    states_.resize(states_.size() - 1U);
-  }
 
   std::vector<std::unique_ptr<state_info>> states_;
 };

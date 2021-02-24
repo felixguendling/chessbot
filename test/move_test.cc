@@ -17,12 +17,8 @@ std::set<std::string> print_all_positions_after_move(position const& p) {
   std::set<std::string> prints;
   generate_moves(p, [&](move const& m) {
     auto copy = position{p};
-    auto const s = copy.to_state_info();
-    auto const info = copy.make_move(m, &s, p.get_hash());
+    auto const info = copy.make_move(m, nullptr);
     prints.emplace(copy.to_str());
-
-    copy.undo_move(info);
-    CHECK(p.to_fen() == copy.to_fen());
   });
   return prints;
 };
@@ -31,11 +27,8 @@ std::set<std::string> fen_strings_after_move(position const& p) {
   std::set<std::string> prints;
   generate_moves(p, [&](move const& m) {
     auto copy = position{p};
-    auto const s = copy.to_state_info();
-    auto const info = copy.make_move(m, &s, p.get_hash());
+    auto const info = copy.make_move(m, nullptr);
     prints.emplace(copy.to_fen());
-    copy.undo_move(info);
-    CHECK(p.to_fen() == copy.to_fen());
   });
   return prints;
 };
@@ -500,13 +493,10 @@ TEST_CASE("white castle") {
 }
 
 TEST_CASE("make move from string") {
-  auto in = std::stringstream{start_position_fen};
+  auto p = test_position{start_position_fen};
 
-  auto p = position{};
-  in >> p;
-
-  p.make_move("e2e3", nullptr);
-  p.make_move("e7e6", nullptr);
+  p.make_move("e2e3");
+  p.make_move("e7e6");
 
   CHECK(p.to_fen() ==
         "rnbqkbnr/pppp1ppp/4p3/8/8/4P3/PPPP1PPP/RNBQKBNR w KQkq - 0 2");
@@ -569,7 +559,7 @@ TEST_CASE("detect check mate") {
   in >> p;
 
   CHECK(fen_strings_after_move(p).empty());
-  CHECK(!is_valid_move(p, move{0U, 0U}));
+  CHECK(!is_valid_move<color::BLACK>(p, move{0U, 0U}));
 }
 
 TEST_CASE("detect non check mate") {
@@ -579,7 +569,7 @@ TEST_CASE("detect non check mate") {
   in >> p;
 
   CHECK(!fen_strings_after_move(p).empty());
-  CHECK(is_valid_move(p, move{0U, 0U}));
+  CHECK(is_valid_move<color::WHITE>(p, move{0U, 0U}));
 }
 
 TEST_CASE("white short castle with knight f2") {
@@ -597,56 +587,18 @@ TEST_CASE("white short castle with knight f2") {
 }
 
 TEST_CASE("black cannot castle rook captured") {
-  constexpr auto const fen =
-      "rnbqk2r/pppppp1p/5B1b/6p1/8/1P6/P1PPPPPP/RN1QKBNR w KQkq - 1 4";
-
-  auto in = std::stringstream{fen};
-
-  auto p = position{};
-  in >> p;
-  p.make_move("f6h8", nullptr);
+  auto p = test_position{
+      "rnbqk2r/pppppp1p/5B1b/6p1/8/1P6/P1PPPPPP/RN1QKBNR w KQkq - 1 4"};
+  p.make_move("f6h8");
 
   auto moves = std::set<std::string>{};
   generate_moves(p, [&](move const m) { moves.emplace(m.to_str()); });
+
   CHECK(moves.find("e8g8") == end(moves));
-}
-
-TEST_CASE("invalid state") {
-  auto p = test_position{start_position_fen};
-  p.print();
-
-  p.make_move("e2e3");
-  std::cout << "e2e3\n";
-  p.print();
-
-  p.make_move("e7e5");
-  std::cout << "e7e5\n";
-  p.print();
-
-  p.make_move("g1f3");
-  std::cout << "g1f3\n";
-  p.print();
-
-  p.make_move("a7a6");
-  std::cout << "a7a6\n";
-  p.print();
-
-  p.make_move("f1a6");
-  std::cout << "f1a6\n";
-  p.print();
-
-  std::cout << "\nUNDO\n";
-  p.undo_move();
-  p.print();
-
-  std::cout << "\nTRACE\n";
-  p.print_trace();
-  p.validate();
 }
 
 TEST_CASE("en passant") {
   auto p = test_position{start_position_fen};
-  p.print();
 
   p.make_move("e2e3");
   p.make_move("e7e5");

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cinttypes>
 #include <array>
 #include <iosfwd>
@@ -21,6 +22,8 @@ struct castling_rights {
 };
 
 struct state_info {
+  state_info() = default;
+
   explicit state_info(bitboard ep, move m, castling_rights cr, uint8_t hmc,
                       zobrist_t const prev_hash,
                       state_info const* prev_state_info)
@@ -57,14 +60,9 @@ struct position {
   static position from_fen(std::string const&);
 
   void print() const;
-  state_info make_move(std::string const&, state_info const* prev_state);
-  state_info make_move(std::string const&, state_info const* prev_state,
-                       zobrist_t prev_hash);
-  state_info make_move(move, state_info const* prev_state, zobrist_t);
-  void undo_move(state_info);
+  state_info make_move(move, state_info const* prev_state);
   std::string to_str() const;
   std::string to_fen() const;
-  state_info to_state_info() const;
   void print_trace(state_info const* info) const;
   void validate() const;
 
@@ -80,10 +78,20 @@ struct position {
     return piece_states_[pt] & pieces_by_color_[c];
   }
 
+  template <color Color, piece_type PieceType>
+  bitboard pieces() const {
+    return piece_states_[PieceType] & pieces_by_color_[Color];
+  }
+
   void toggle_pieces(piece_type const pt, color const c,
                      bitboard const toggle) {
     pieces_by_color_[c] ^= toggle;
     piece_states_[pt] ^= toggle;
+
+    auto const square_idx = cista::trailing_zeros(toggle);
+    assert(toggle >> square_idx == 1U);
+    hash_ ^= zobrist_color_hashes[square_idx][c];
+    hash_ ^= zobrist_piece_hashes[square_idx][pt];
   }
 
   bool can_short_castle(color const c) const {
@@ -96,10 +104,9 @@ struct position {
                              : castling_rights_.black_can_long_castle_;
   }
 
-  zobrist_t get_hash() const;
-
   std::array<bitboard, NUM_PIECE_TYPES> piece_states_{};
   std::array<bitboard, 2> pieces_by_color_{};
+  zobrist_t hash_{0U};
   bitboard en_passant_{0U};
   uint8_t half_move_clock_{0U};
   unsigned full_move_count_{0U};

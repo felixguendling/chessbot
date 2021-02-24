@@ -14,7 +14,18 @@ constexpr auto const start_position_fen =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 enum class result { ONGOING, WHITE_WIN, BLACK_WIN, REMIS };
+
 enum color : bool { WHITE, BLACK };
+
+template <color Color>
+constexpr color opposing_color() {
+  if constexpr (Color == color::WHITE) {
+    return color::BLACK;
+  } else {
+    return color::WHITE;
+  }
+}
+
 enum rank : unsigned { R8, R7, R6, R5, R4, R3, R2, R1 };
 enum file : unsigned { FA, FB, FC, FD, FE, FF, FG, FH };
 enum piece_type : uint8_t {

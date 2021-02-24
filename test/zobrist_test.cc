@@ -85,29 +85,3 @@ TEST_CASE("check repetition castling") {
   p.make_move("b8a8");
   CHECK(p.count_repetitions() == 1);
 }
-
-TEST_CASE("check repetition undo") {
-  auto p = test_position{start_position_fen};
-
-  p.make_move("e2e3");
-  p.undo_move();
-
-  auto repeat = [&p, i = 0]() mutable {
-    p.make_move("g1f3");
-    CHECK(p.count_repetitions() == i);
-
-    p.make_move("b8c6");
-    CHECK(p.count_repetitions() == i);
-
-    p.make_move("f3g1");
-    CHECK(p.count_repetitions() == i);
-
-    p.make_move("c6b8");
-    CHECK(p.count_repetitions() == ++i);
-  };
-
-  repeat();
-  repeat();
-  repeat();
-  repeat();
-}

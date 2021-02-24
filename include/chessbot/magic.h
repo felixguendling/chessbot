@@ -50,8 +50,8 @@ extern std::array<std::array<bitboard, (1U << magic_number_num_bits)>, 64U>
 extern std::array<std::array<bitboard, (1U << magic_number_num_bits)>, 64U>
     magic_rook_attack_squares;
 
-inline unsigned get_magic_index(bitboard const occupancy_permutation,
-                                uint64_t const magic_number) {
+inline constexpr unsigned get_magic_index(bitboard const occupancy_permutation,
+                                          uint64_t const magic_number) {
   return (occupancy_permutation * magic_number) >> (64 - magic_number_num_bits);
 }
 
@@ -59,8 +59,8 @@ template <piece_type>
 bitboard get_attack_squares(bitboard square, bitboard occupancy);
 
 template <>
-inline bitboard get_attack_squares<piece_type::ROOK>(bitboard const square,
-                                                     bitboard const occupancy) {
+inline constexpr bitboard get_attack_squares<piece_type::ROOK>(
+    bitboard const square, bitboard const occupancy) {
   auto const square_idx = cista::trailing_zeros(square);
   return magic_rook_attack_squares[square_idx][get_magic_index(
       rook_attack_bbs[square_idx] & occupancy,
@@ -68,7 +68,7 @@ inline bitboard get_attack_squares<piece_type::ROOK>(bitboard const square,
 }
 
 template <>
-inline bitboard get_attack_squares<piece_type::BISHOP>(
+inline constexpr bitboard get_attack_squares<piece_type::BISHOP>(
     bitboard const square, bitboard const occupancy) {
   auto const square_idx = cista::trailing_zeros(square);
   return magic_bishop_attack_squares[square_idx][get_magic_index(
