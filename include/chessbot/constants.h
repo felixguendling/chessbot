@@ -17,6 +17,8 @@ enum class result { ONGOING, WHITE_WIN, BLACK_WIN, REMIS };
 
 enum color : bool { WHITE, BLACK };
 
+constexpr auto const max_moves = 256;
+
 template <color Color>
 constexpr color opposing_color() {
   if constexpr (Color == color::WHITE) {

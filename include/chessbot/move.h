@@ -19,16 +19,13 @@ struct move {
 
   explicit move(std::string const&);
 
-  explicit move(bitboard from, bitboard to)
+  explicit move(bitboard from, bitboard to,
+                special_move const sm = special_move::NONE,
+                promotion_piece_type const ppt = promotion_piece_type::KNIGHT)
       : from_field_{static_cast<uint16_t>(cista::trailing_zeros(from))},
         to_field_{static_cast<uint16_t>(cista::trailing_zeros(to))},
-        special_move_{special_move::NONE},
-        promotion_piece_type_{promotion_piece_type::KNIGHT} {}
-
-  explicit move(bitboard from, bitboard to, promotion_piece_type ppt)
-      : move{from, to} {
-    promotion_piece_type_ = ppt;
-  }
+        special_move_{sm},
+        promotion_piece_type_{ppt} {}
 
   bitboard from() const { return rank_file_to_bitboard(0, from_field_); }
   bitboard to() const { return rank_file_to_bitboard(0, to_field_); }

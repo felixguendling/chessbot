@@ -2,8 +2,6 @@
 
 #include <cinttypes>
 
-#include "cista/bit_counting.h"
-
 namespace chessbot {
 
 using bitboard = uint64_t;
@@ -11,9 +9,16 @@ using bitboard = uint64_t;
 template <typename Fn>
 void for_each_set_bit(bitboard bb, Fn&& f) {
   while (bb != 0U) {
-    auto const square_idx = cista::trailing_zeros(bb);
-    auto const set_bit = bitboard{1U} << bitboard{square_idx};
-    bb = bb & ~set_bit;
+
+#ifdef _M_X64
+    unsigned long square_idx = 0;
+    _BitScanForward64(&square_idx, bb);
+#else
+    auto const square_idx = __builtin_ctzll(bb);
+#endif
+
+    auto const set_bit = bitboard{1U} << square_idx;
+    bb ^= set_bit;
     f(set_bit);
   }
 }

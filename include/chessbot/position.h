@@ -94,14 +94,22 @@ struct position {
     hash_ ^= zobrist_piece_hashes[square_idx][pt];
   }
 
-  bool can_short_castle(color const c) const {
-    return c == color::WHITE ? castling_rights_.white_can_short_castle_
-                             : castling_rights_.black_can_short_castle_;
+  template <color Color>
+  bool can_short_castle() const {
+    if constexpr (Color == color::WHITE) {
+      return castling_rights_.white_can_short_castle_;
+    } else {
+      return castling_rights_.black_can_short_castle_;
+    }
   }
 
-  bool can_long_castle(color const c) const {
-    return c == color::WHITE ? castling_rights_.white_can_long_castle_
-                             : castling_rights_.black_can_long_castle_;
+  template <color Color>
+  bool can_long_castle() const {
+    if constexpr (Color == color::WHITE) {
+      return castling_rights_.white_can_long_castle_;
+    } else {
+      return castling_rights_.black_can_long_castle_;
+    }
   }
 
   std::array<bitboard, NUM_PIECE_TYPES> piece_states_{};
