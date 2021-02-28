@@ -61,6 +61,8 @@ struct position {
 
   void print() const;
   state_info make_move(move, state_info const* prev_state);
+  void update_blockers_and_pinners(move);
+  void init_blockers_and_pinners(color);
   std::string to_str() const;
   std::string to_fen() const;
   void print_trace(state_info const* info) const;
@@ -114,6 +116,9 @@ struct position {
 
   std::array<bitboard, NUM_PIECE_TYPES> piece_states_{};
   std::array<bitboard, 2> pieces_by_color_{};
+  std::array<bitboard, 2> checkers_{};
+  std::array<bitboard, 2> blockers_for_king_{};
+  std::array<bitboard, 2> pinners_{};
   zobrist_t hash_{0U};
   bitboard en_passant_{0U};
   uint8_t half_move_clock_{0U};

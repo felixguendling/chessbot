@@ -101,3 +101,9 @@ TEST_CASE("bishop attack squares blocked") {
                        (rank_file_to_bitboard(R3, FF) | occupancy);
   CHECK(matches);
 }
+
+TEST_CASE("bishop attack squares empty occupancy") {
+  CHECK(
+      get_attack_squares<BISHOP>(rank_file_to_bitboard(R8, FE), bitboard{0}) ==
+      (bishop_line_to_edge_bb[4][11] | bishop_line_to_edge_bb[4][13]));
+}

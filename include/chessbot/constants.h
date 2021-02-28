@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cmath>
 #include <array>
 #include <limits>
 #include <string_view>
@@ -200,5 +201,83 @@ constexpr auto const king_attacks_by_origin_square = []() {
   }
   return king_attacks_bb;
 }();
+
+constexpr bitboard pawn_attacks_bb(bitboard const origin, color const c) {
+  return c == color::WHITE ? (((origin & ~full_file_bitboard(FH)) >> 7) |
+                              (origin & ~full_file_bitboard(FA)) >> 9)
+                           : (((origin & ~full_file_bitboard(FH)) << 9) |
+                              ((origin & ~full_file_bitboard(FA)) << 7));
+}
+
+static_assert(pawn_attacks_bb(rank_file_to_bitboard(R4, FE), color::WHITE) ==
+              (rank_file_to_bitboard(R5, FF) | rank_file_to_bitboard(R5, FD)));
+static_assert(pawn_attacks_bb(rank_file_to_bitboard(R4, FA), color::WHITE) ==
+              (rank_file_to_bitboard(R5, FB)));
+static_assert(pawn_attacks_bb(rank_file_to_bitboard(R4, FH), color::WHITE) ==
+              (rank_file_to_bitboard(R5, FG)));
+static_assert(pawn_attacks_bb(rank_file_to_bitboard(R4, FA), color::BLACK) ==
+              (rank_file_to_bitboard(R3, FB)));
+static_assert(pawn_attacks_bb(rank_file_to_bitboard(R4, FH), color::BLACK) ==
+              (rank_file_to_bitboard(R3, FG)));
+
+template <typename T>
+constexpr T abs(T const i) {
+  if (i < 0) {
+    return -i;
+  }
+  return i;
+}
+
+constexpr std::array<std::array<bitboard, 64>, 64> get_line_bb(
+    bool const diag, bool const to_edge) {
+  auto lines = std::array<std::array<bitboard, 64>, 64>{};
+  for (auto sq1 = 0; sq1 < 64; ++sq1) {
+    for (auto sq2 = 0; sq2 < 64; ++sq2) {
+      auto const rank1 = sq1 / 8;
+      auto const file1 = sq1 % 8;
+      auto const rank2 = sq2 / 8;
+      auto const file2 = sq2 % 8;
+      auto line = bitboard{0U};
+      if (rank1 == rank2 && !diag) {
+        for (auto i = 1; i < (to_edge ? 9 : abs(file1 - file2)) && i <= 8;
+             ++i) {
+          line |= safe_north_west(bitboard{1} << sq1, 0, sq1 < sq2 ? -i : i);
+        }
+      }
+      if (file1 == file2 && !diag) {
+        for (auto i = 1; i < (to_edge ? 9 : abs(rank1 - rank2)) && i <= 8;
+             ++i) {
+          line |= safe_north_west(bitboard{1} << sq1, sq1 < sq2 ? -i : i, 0);
+        }
+      }
+      if (abs(rank1 - rank2) == abs(file1 - file2) && diag) {
+        for (auto i = 1; i < (to_edge ? 9 : abs(rank1 - rank2)) && i <= 8;
+             ++i) {
+          line |= safe_north_west(bitboard{1} << sq1, rank1 < rank2 ? -i : i,
+                                  file1 < file2 ? -i : i);
+        }
+      }
+      lines[sq1][sq2] = line;
+    }
+  }
+  return lines;
+}
+
+constexpr auto const rook_line_bb = get_line_bb(false, false);
+constexpr auto const bishop_line_bb = get_line_bb(true, false);
+
+constexpr auto const rook_line_to_edge_bb = get_line_bb(false, true);
+constexpr auto const bishop_line_to_edge_bb = get_line_bb(true, true);
+
+static_assert(rook_line_bb[0][0] == bitboard{0});
+static_assert(rook_line_bb[1][14] == bitboard{0});
+static_assert(bishop_line_bb[1][14] == bitboard{0});
+static_assert(rook_line_bb[1][4] == bitboard{4 + 8});
+static_assert(rook_line_bb[0][16] == bitboard{256});
+static_assert(bishop_line_bb[2][20] == rank_file_to_bitboard(R7, FD));
+static_assert(bishop_line_to_edge_bb[45][54] ==
+              (rank_file_to_bitboard(R2, FG) | rank_file_to_bitboard(R1, FH)));
+static_assert(rook_line_to_edge_bb[0][3] ==
+              (full_rank_bitboard(R8) & ~rank_file_to_bitboard(R8, FA)));
 
 }  // namespace chessbot

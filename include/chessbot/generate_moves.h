@@ -29,6 +29,7 @@ inline unsigned count_repetitions(position const& p,
 
 template <color ToMove>
 move* generate_moves(position const& p, move* move_list) {
+  auto const our_king = p.pieces<ToMove, piece_type::KING>();
   auto const opposing_pawns =
       p.pieces<opposing_color<ToMove>(), piece_type::PAWN>();
   const auto opposing_knights =
@@ -43,7 +44,11 @@ move* generate_moves(position const& p, move* move_list) {
       p.pieces<opposing_color<ToMove>(), piece_type::BISHOP>() | opposing_queen;
 
   auto const compute_pawn_attacks = [&](bitboard const to) {
-    auto const opposing_pawns_without_captured = opposing_pawns & ~to;
+    auto opposing_pawns_without_captured = opposing_pawns & ~to;
+    if (to & p.en_passant_) {
+      opposing_pawns_without_captured &=
+          ~(ToMove == color::WHITE ? to << 8 : to >> 8);
+    }
     auto attacked_bb = bitboard{};
     if (ToMove == color::WHITE) {
       attacked_bb |= (opposing_pawns_without_captured & ~full_file_bitboard(FA))
@@ -60,11 +65,40 @@ move* generate_moves(position const& p, move* move_list) {
   };
   auto const pawn_attacks_without_capture = compute_pawn_attacks(0U);
   auto const get_pawn_attacks = [&](bitboard const to) {
-    return to == 0U ? pawn_attacks_without_capture : compute_pawn_attacks(to);
+    return to & (opposing_pawns | p.en_passant_) ? compute_pawn_attacks(to)
+                                                 : pawn_attacks_without_capture;
   };
 
   auto const is_valid_move = [&](bitboard const from, bitboard const to,
                                  special_move const sm) {
+    /*
+    if (sm == special_move::CASTLE ||
+        (!p.checkers_[ToMove]  // no check
+         && !(from & p.blockers_for_king_[ToMove])  // no pinned moved
+         && !(from & our_king))  // not a king move
+    ) {
+      return true;
+    } else if (p.checkers_[ToMove]) {
+      if (std::popcount(p.checkers_[ToMove]) > 1) {
+        //  - king moves to square not attacked by opponent
+      } else {
+        // We have to react to a check!
+        // TODO check if
+        //  - king moves to square not attacked by opponent
+        //  - moved piece disrupts line (not for knight attack)
+        //  - or checker is captured
+      }
+    } else if (from & p.blockers_for_king_[ToMove]) {
+      // We're trying to move a pinned piece!
+      // TODO check if pinned piece is still preventing check
+      //      -> moves along attack line
+    } else if (from & our_king) {
+      // We're trying to move our king!
+      // TODO check if king does not move to attacked square
+    }
+*/
+    // OLD CODE
+
     if (sm == special_move::CASTLE) {
       return true;
     }
