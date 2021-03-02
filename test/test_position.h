@@ -9,12 +9,12 @@ namespace chessbot {
 
 struct test_position : public position {
   explicit test_position(std::string const& fen)
-      : position{position::from_fen(start_position_fen)} {}
+      : position{position::from_fen(fen)} {}
 
   void make_move(std::string const& s) {
     auto const& m =
         states_.emplace_back(std::make_unique<state_info>(position::make_move(
-            move{s}, states_.empty() ? nullptr : states_.back().get())));
+            move{*this, s}, states_.empty() ? nullptr : states_.back().get())));
   }
 
   unsigned count_repetitions() const {

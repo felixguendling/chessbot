@@ -11,13 +11,15 @@
 
 namespace chessbot {
 
+struct position;
+
 enum class promotion_piece_type : uint16_t { KNIGHT, BISHOP, ROOK, QUEEN };
 enum class special_move : uint16_t { NONE, PROMOTION, CASTLE };
 
 struct move {
   move() = default;
 
-  explicit move(std::string const&);
+  explicit move(position const&, std::string const&);
 
   explicit move(bitboard from, bitboard to,
                 special_move const sm = special_move::NONE,

@@ -61,11 +61,10 @@ struct position {
 
   void print() const;
   state_info make_move(move, state_info const* prev_state);
-  void update_blockers_and_pinners(move);
-  void init_blockers_and_pinners(color);
+  void update_blockers_and_pinners(move, bitboard en_passant);
   std::string to_str() const;
   std::string to_fen() const;
-  void print_trace(state_info const* info) const;
+  void print_trace(state_info const*) const;
   void validate() const;
 
   color opposing_color() const {

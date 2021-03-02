@@ -42,6 +42,7 @@ move* generate_moves(position const& p, move* move_list) {
       p.pieces<opposing_color<ToMove>(), piece_type::ROOK>() | opposing_queen;
   auto const opposing_diagonal_movers =
       p.pieces<opposing_color<ToMove>(), piece_type::BISHOP>() | opposing_queen;
+  auto const king_square_idx = cista::trailing_zeros(p.pieces<ToMove, KING>());
 
   auto const compute_pawn_attacks = [&](bitboard const to) {
     auto opposing_pawns_without_captured = opposing_pawns & ~to;
@@ -69,36 +70,9 @@ move* generate_moves(position const& p, move* move_list) {
                                                  : pawn_attacks_without_capture;
   };
 
-  auto const is_valid_move = [&](bitboard const from, bitboard const to,
-                                 special_move const sm) {
-    /*
-    if (sm == special_move::CASTLE ||
-        (!p.checkers_[ToMove]  // no check
-         && !(from & p.blockers_for_king_[ToMove])  // no pinned moved
-         && !(from & our_king))  // not a king move
-    ) {
-      return true;
-    } else if (p.checkers_[ToMove]) {
-      if (std::popcount(p.checkers_[ToMove]) > 1) {
-        //  - king moves to square not attacked by opponent
-      } else {
-        // We have to react to a check!
-        // TODO check if
-        //  - king moves to square not attacked by opponent
-        //  - moved piece disrupts line (not for knight attack)
-        //  - or checker is captured
-      }
-    } else if (from & p.blockers_for_king_[ToMove]) {
-      // We're trying to move a pinned piece!
-      // TODO check if pinned piece is still preventing check
-      //      -> moves along attack line
-    } else if (from & our_king) {
-      // We're trying to move our king!
-      // TODO check if king does not move to attacked square
-    }
-*/
-    // OLD CODE
-
+  // OLD CODE
+  auto const valid_move_old = [&](bitboard const from, bitboard const to,
+                                  special_move const sm) {
     if (sm == special_move::CASTLE) {
       return true;
     }
@@ -130,6 +104,86 @@ move* generate_moves(position const& p, move* move_list) {
       return false;
     }
 
+    return true;
+  };
+
+  // OLD CODE END
+
+  auto const blocker_can_move = [&](bitboard const from, bitboard const to,
+                                    bitboard const en_passant) {
+    auto const from_idx = cista::trailing_zeros(from);
+    auto const line_to_edge_bb =
+        rook_line_to_edge_bb[king_square_idx][from_idx] |
+        bishop_line_to_edge_bb[king_square_idx][from_idx];
+    if (line_to_edge_bb & to) {
+      return true;
+    }
+    auto valid = true;
+    auto const updated_blockers_for_king =
+        p.blockers_for_king_[ToMove] ^ (from | en_passant);
+    for_each_set_bit(
+        p.pinners_[ToMove] & line_to_edge_bb, [&](bitboard const pinner) {
+          auto const pinner_idx = cista::trailing_zeros(pinner);
+          auto const line_to_pinner =
+              bishop_line_bb[king_square_idx][pinner_idx] |
+              rook_line_bb[king_square_idx][pinner_idx];
+          valid = valid && (line_to_pinner & updated_blockers_for_king);
+        });
+    return valid;
+  };
+
+  auto const is_valid_move = [&](bitboard const from, bitboard const to,
+                                 special_move const sm) -> bool {
+    if (sm == special_move::CASTLE ||
+        (!p.checkers_[ToMove]  // no check
+         && !(from & p.blockers_for_king_[ToMove])  // no blocker moved
+         && !(from & our_king))  // not a king move
+    ) {
+      return true;
+    } else if (from & our_king) {
+      return valid_move_old(from, to, sm);
+    } else if (p.checkers_[ToMove]) {  // in check
+      if (std::popcount(p.checkers_[ToMove]) > 1) {  // multiple checkers
+        return false;
+      } else {  // in check from one piece
+        // blocker for king moves
+        if (from & p.blockers_for_king_[ToMove]) {
+          if (!blocker_can_move(from, to, 0)) {
+            return false;
+          }
+        }
+        if (p.checkers_[ToMove] & to) {
+          return true;
+        }
+        if ((p.en_passant_ & to) && (p.piece_states_[PAWN] & from)) {
+          auto const capture_square_bb =
+              ToMove == color::WHITE ? p.en_passant_ << 8 : p.en_passant_ >> 8;
+          if (capture_square_bb & p.checkers_[ToMove]) {
+            return true;
+          }
+        }
+        if (p.checkers_[ToMove] &
+            (p.piece_states_[ROOK] | p.piece_states_[QUEEN] |
+             p.piece_states_[BISHOP])) {
+          const auto checker = cista::trailing_zeros(p.checkers_[ToMove]);
+          return (bishop_line_bb[king_square_idx][checker] |
+                  rook_line_bb[king_square_idx][checker]) &
+                 to;
+        }
+        return false;
+      }
+    } else if (from & p.blockers_for_king_[ToMove]) {
+      if ((p.en_passant_ & to) && (p.piece_states_[PAWN] & from)) {
+        auto const capture_square_bb =
+            ToMove == color::WHITE ? p.en_passant_ << 8 : p.en_passant_ >> 8;
+        if (!blocker_can_move(capture_square_bb, to, from)) {
+          return false;
+        }
+      }
+      return blocker_can_move(from, to, 0);
+    }
+
+    assert(false);
     return true;
   };
 

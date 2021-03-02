@@ -467,17 +467,17 @@ TEST_CASE("white cannot castle with attack and block") {
 }
 
 TEST_CASE("white cannot castle knight attack") {
-  auto in = std::stringstream{"8/8/8/8/8/p2npp1p/P2PPP1P/R3K2R w KQkq - 0 1"};
+  auto in = std::stringstream{"4k3/8/8/8/8/p2npp1p/P2PPP1P/R3K2R w KQ - 0 1"};
   position p;
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{// pawn captures
-                              "8/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b KQkq - 0 1",
+                              "4k3/8/8/8/8/p2Ppp1p/P2P1P1P/R3K2R b KQ - 0 1",
 
                               // king moves
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/R4K1R b kq - 0 1",
-                              "8/8/8/8/8/p2npp1p/P2PPP1P/R2K3R b kq - 0 1"});
+                              "4k3/8/8/8/8/p2npp1p/P2PPP1P/R4K1R b - - 0 1",
+                              "4k3/8/8/8/8/p2npp1p/P2PPP1P/R2K3R b - - 0 1"});
 }
 
 TEST_CASE("white castle") {
@@ -512,15 +512,14 @@ TEST_CASE("make move from string") {
 }
 
 TEST_CASE("escape check") {
-  constexpr auto const pos_fen = "8/8/7P/8/8/p7/8/K6r w - - 0 2";
+  constexpr auto const pos_fen = "8/k6P/8/8/8/p7/8/K6r w - - 0 2";
   auto in = std::stringstream{pos_fen};
 
   auto p = position{};
   in >> p;
-
   CHECK(fen_strings_after_move(p) ==
         std::set<std::string>{// pawn captures
-                              "8/8/7P/8/8/p7/K7/7r b - - 1 2"});
+                              "8/k6P/8/8/8/p7/K7/7r b - - 1 2"});
 }
 
 TEST_CASE("knight attacks by origin square") {
@@ -537,15 +536,15 @@ TEST_CASE("knight attacks by origin square") {
 }
 
 TEST_CASE("escape check big") {
-  constexpr auto const pos_fen = "4q3/8/3n4/1K1Pp2r/8/8/8/1r3b2 w - e6 0 1";
+  constexpr auto const pos_fen = "4q3/8/3n4/1K1Pp2r/8/8/8/1r3b1k w - e6 0 1";
   auto in = std::stringstream{pos_fen};
 
   auto p = position{};
   in >> p;
 
   CHECK(fen_strings_after_move(p) ==
-        std::set<std::string>{"4q3/8/3n4/2KPp2r/8/8/8/1r3b2 b - - 1 1",
-                              "4q3/8/3n4/K2Pp2r/8/8/8/1r3b2 b - - 1 1"});
+        std::set<std::string>{"4q3/8/3n4/2KPp2r/8/8/8/1r3b1k b - - 1 1",
+                              "4q3/8/3n4/K2Pp2r/8/8/8/1r3b1k b - - 1 1"});
 }
 
 TEST_CASE("escape check en passant") {
@@ -632,4 +631,214 @@ TEST_CASE("en passant") {
     moves.emplace(m.to_str());
   }
   CHECK(moves.find("d4c3") != std::end(moves));
+}
+
+TEST_CASE("capture pinner") {
+  auto p = test_position{start_position_fen};
+
+  p.make_move("a2a3");
+  p.make_move("e7e5");
+  p.make_move("d2d3");
+  p.make_move("f8b4");
+  p.make_move("a3b4");
+  p.make_move("a7a5");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 30);
+  CHECK(moves.find("b4b5") != std::end(moves));
+}
+
+TEST_CASE("blocker moves on blocking line") {
+  auto p = test_position{start_position_fen};
+
+  p.make_move("d2d3");
+  p.make_move("c7c5");
+  p.make_move("e1d2");
+  p.make_move("c5c4");
+  p.make_move("d3c4");
+  p.make_move("d7d5");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 24);
+  CHECK(moves.find("a2a3") != std::end(moves));
+}
+
+TEST_CASE("blocker captured by en passant") {
+  auto p = test_position{start_position_fen};
+
+  p.make_move("b2b4");
+  p.make_move("e7e5");
+  p.make_move("b4b5");
+  p.make_move("e8e7");
+  p.make_move("c1a3");
+  p.make_move("c7c5");
+  p.make_move("b5c6");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 4);
+  CHECK(moves.find("h7h6") == std::end(moves));
+}
+
+TEST_CASE("en passant capture removes two blockers") {
+  auto p = test_position{"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "};
+
+  p.make_move("e2e4");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 16);
+  CHECK(moves.find("f4e3") == std::end(moves));
+}
+
+TEST_CASE("blocking pawn captures and clears line") {
+  auto p = test_position{"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "};
+
+  p.make_move("b4b1");
+  p.make_move("h4g5");
+  p.make_move("b1f1");
+  p.make_move("g5f6");
+  p.make_move("e2e4");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 24);
+  CHECK(moves.find("f4e3") == std::end(moves));
+}
+
+TEST_CASE("en passant removes both pawns as blockers") {
+  auto p = test_position{"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "};
+
+  p.make_move("e2e4");
+  p.make_move("c7c5");
+  p.make_move("g2g4");
+  p.make_move("f4g3");
+  p.make_move("e4e5");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 4);
+  CHECK(moves.find("d6d5") == std::end(moves));
+}
+
+TEST_CASE("blocker captured by king") {
+  auto p = test_position{"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - "};
+
+  p.make_move("g2g4");
+  p.make_move("h4g4");
+  p.make_move("a5a4");
+  p.make_move("g4h4");
+  p.make_move("a4a3");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.size() == 16);
+  CHECK(moves.find("f4f3") == std::end(moves));
+}
+
+TEST_CASE("promoted piece moves") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+
+  p.make_move("c4c5");
+  p.make_move("b2a1b");
+  p.make_move("a4b3");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.find("a1b2") != std::end(moves));
+}
+
+TEST_CASE("castle into pin") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+
+  p.make_move("c4c5");
+  p.make_move("b2a1b");
+  p.make_move("d1c1");
+  p.make_move("e8c8");
+  p.make_move("c5b6");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.find("c7b6") == std::end(moves));
+}
+
+TEST_CASE("checking piece becomes pinner after king move") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+
+  p.make_move("b4c5");
+  p.make_move("a3b3");
+  p.make_move("g1f2");
+  p.make_move("b3e3");
+  p.make_move("f2g3");
+  p.make_move("a5b3");
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.find("f3d4") == std::end(moves));
+}
+
+TEST_CASE("???") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+
+  p.make_move("b4c5");
+  p.make_move("e8c8");
+  p.make_move("d1c1");
+  p.make_move("b2c1q");
+  p.make_move("f1c1");
+  p.make_move("a3a2");
+  p.print();
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.find("c5a3") == std::end(moves));
 }

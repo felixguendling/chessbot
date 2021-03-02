@@ -24,13 +24,18 @@ size_t dfs_rec(position& p, unsigned const current_depth,
   auto const begin = &move_list[0];
   auto const end = generate_moves(p, begin);
   if (current_depth + 1 == max_depth) {
+    if (IsRoot) {
+      for (auto it = begin; it != end; ++it) {
+        printf("%s 1\n", it->to_str().c_str());
+      }
+    }
     leaf_nodes += (end - begin);
   } else {
     for (auto it = begin; it != end; ++it) {
       auto const s = p.make_move(*it, info_ptr);
       auto const leaves = dfs_rec(p, current_depth + 1, max_depth, &s);
       if (IsRoot) {
-        printf("%s: %zu\n", it->to_str().c_str(), leaves);
+        printf("%s %zu\n", it->to_str().c_str(), leaves);
       }
       leaf_nodes += leaves;
       p = copy;
@@ -87,14 +92,20 @@ int main(int argc, char** argv) {
                                        : initial_move_states.back().get();
   };
 
+  std::stringstream moves;
   for (auto i = 3; i < argc; ++i) {
+    moves << argv[3];
+  }
+
+  std::string move_str;
+  while (moves >> move_str) {
     initial_move_states.emplace_back(std::make_unique<state_info>(
-        p.make_move(move{argv[i]}, prev_state_info())));
+        p.make_move(move{p, move_str}, prev_state_info())));
   }
 
   CHESSBOT_START_TIMING(dfs_rec);
   auto const result = dfs_rec<true>(p, 0U, depth, prev_state_info());
   CHESSBOT_STOP_TIMING(dfs_rec);
   std::cout << "\n" << result << "\n";
-  std::cout << CHESSBOT_TIMING_MS(dfs_rec) << "ms\n";
+  //  std::cout << CHESSBOT_TIMING_MS(dfs_rec) << "ms\n";
 }

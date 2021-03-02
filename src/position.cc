@@ -14,6 +14,54 @@
 
 namespace chessbot {
 
+template <bool InitCheckers>
+void init_blockers_and_pinners(position& p, color const c) {
+  p.blockers_for_king_[c] = 0U;
+  p.pinners_[c] = 0U;
+  p.checkers_[c] = 0U;
+
+  auto const opposing_color = c == color::WHITE ? color::BLACK : color::WHITE;
+  auto const king_square = p.pieces(c, KING);
+  auto const king_square_idx = cista::trailing_zeros(king_square);
+
+  if (InitCheckers) {
+    p.checkers_[c] = knight_attacks_by_origin_square[king_square_idx] &
+                     p.pieces(opposing_color, KNIGHT);
+    p.checkers_[c] |= get_attack_squares<BISHOP>(king_square, p.all_pieces()) &
+                      p.pieces(opposing_color, BISHOP);
+    p.checkers_[c] |= get_attack_squares<BISHOP>(king_square, p.all_pieces()) &
+                      p.pieces(opposing_color, QUEEN);
+    p.checkers_[c] |= get_attack_squares<ROOK>(king_square, p.all_pieces()) &
+                      p.pieces(opposing_color, ROOK);
+    p.checkers_[c] |= get_attack_squares<ROOK>(king_square, p.all_pieces()) &
+                      p.pieces(opposing_color, QUEEN);
+    p.checkers_[c] |=
+        pawn_attacks_bb(p.pieces(c, KING), c) & p.pieces(opposing_color, PAWN);
+  }
+
+  for_each_set_bit(
+      get_attack_squares<BISHOP>(king_square, bitboard{0}) &
+          (p.pieces(opposing_color, BISHOP) | p.pieces(opposing_color, QUEEN)) &
+          ~p.checkers_[c],
+      [&](bitboard const pinner) {
+        p.pinners_[c] |= pinner;
+        // TODO for_each_set_bit_index
+        p.blockers_for_king_[c] |=
+            bishop_line_bb[king_square_idx][cista::trailing_zeros(pinner)] &
+            p.all_pieces();
+      });
+  for_each_set_bit(
+      get_attack_squares<ROOK>(king_square, bitboard{0}) &
+          (p.pieces(opposing_color, ROOK) | p.pieces(opposing_color, QUEEN)) &
+          ~p.checkers_[c],
+      [&](bitboard const pinner) {
+        p.pinners_[c] |= pinner;
+        p.blockers_for_king_[c] |=
+            rook_line_bb[king_square_idx][cista::trailing_zeros(pinner)] &
+            p.all_pieces();
+      });
+}
+
 void state_info::print_moves() const {
   for_each_pred(
       [](state_info const& pred) { std::cout << pred.last_move_ << " "; });
@@ -318,8 +366,8 @@ std::istream& operator>>(std::istream& in, position& p) {
         in >> p.full_move_count_;
         p.hash_ = compute_hash(p);
         if (std::popcount(p.piece_states_[KING]) == 2) {
-          p.init_blockers_and_pinners(color::WHITE);
-          p.init_blockers_and_pinners(color::BLACK);
+          init_blockers_and_pinners<true>(p, color::WHITE);
+          init_blockers_and_pinners<true>(p, color::BLACK);
         }
         p.validate();
         return in;
@@ -520,7 +568,7 @@ state_info position::make_move(move const m,
     }
   }
 
-  update_blockers_and_pinners(m);
+  update_blockers_and_pinners(m, info.en_passant_);
 
   if (to_move_ == BLACK) {
     ++full_move_count_;
@@ -532,7 +580,8 @@ state_info position::make_move(move const m,
   return info;
 }
 
-void position::update_blockers_and_pinners(move const m) {
+void position::update_blockers_and_pinners(move const m,
+                                           bitboard const en_passant) {
   auto const from = m.from();
   auto const to = m.to();
 
@@ -542,55 +591,99 @@ void position::update_blockers_and_pinners(move const m) {
   const auto our_bishops = pieces(to_move_, BISHOP);
   auto const our_rooks = pieces(to_move_, ROOK);
 
-  // Check if pinner moves.
+  // Pinner was moved or captured.
   // -> remove new non-blockers from blockers list for opposing king
-  if (pinners_[opposing_color()] & from) {
-    pinners_[opposing_color()] ^= from;
+  auto const remove_pinner = [&](color const c,
+                                 bitboard const removed_pinner_bb,
+                                 unsigned const removed_pinner_square_idx) {
+    if (pinners_[c] & removed_pinner_bb) {
+      pinners_[c] ^= removed_pinner_bb;
 
-    auto const line_bb =
-        (bishop_line_to_edge_bb[opposing_king_square_idx][m.from_field_] |
-         rook_line_to_edge_bb[opposing_king_square_idx][m.from_field_]);
+      auto const line_to_edge_bb =
+          (bishop_line_to_edge_bb[opposing_king_square_idx]
+                                 [removed_pinner_square_idx] |
+           rook_line_to_edge_bb[opposing_king_square_idx]
+                               [removed_pinner_square_idx]);
 
-    if (!(blockers_for_king_[opposing_color()] & from)) {
-      // Piece was a pinner but not a blocker (last in line).
-      blockers_for_king_[opposing_color()] &= ~line_bb;
+      if (!(blockers_for_king_[c] & removed_pinner_bb)) {
+        // Piece was a pinner but not a blocker (last in line).
+        blockers_for_king_[c] &= ~line_to_edge_bb;
 
-      for_each_set_bit(
-          line_bb & pinners_[opposing_color()],
-          [&](bitboard const remaining_pinner) {
-            blockers_for_king_[opposing_color()] |=
-                (bishop_line_bb[opposing_king_square_idx]
-                               [cista::trailing_zeros(remaining_pinner)] |
-                 rook_line_bb[opposing_king_square_idx]
-                             [cista::trailing_zeros(remaining_pinner)]) &
-                all_pieces();
-          });
+        for_each_set_bit(
+            line_to_edge_bb & pinners_[c],
+            [&](bitboard const remaining_pinner) {
+              blockers_for_king_[c] |=
+                  (bishop_line_bb[opposing_king_square_idx]
+                                 [cista::trailing_zeros(remaining_pinner)] |
+                   rook_line_bb[opposing_king_square_idx]
+                               [cista::trailing_zeros(remaining_pinner)]) &
+                  all_pieces();
+            });
+      }
     }
-  }
+  };
 
   // Blocker for opposing king was moved.
   // -> remove from blocker bitboard
   // -> check if it's a discovered check for the opposing king
-  if (blockers_for_king_[opposing_color()] & from) {
-    blockers_for_king_[opposing_color()] ^= from;
+  auto const blocker_for_opposing_king_move = [&]() {
+    if (blockers_for_king_[opposing_color()] & from) {
+      blockers_for_king_[opposing_color()] ^= from;
 
-    auto const attackers =
-        (bishop_line_to_edge_bb[opposing_king_square_idx][m.from_field_] |
-         rook_line_to_edge_bb[opposing_king_square_idx][m.from_field_]) &
-        pinners_[opposing_color()];
-    for_each_set_bit(attackers, [&](bitboard const attacker) {
-      auto const attacker_square_idx = cista::trailing_zeros(attacker);
-      auto const line_bb =
-          bishop_line_bb[opposing_king_square_idx][attacker_square_idx] |
-          rook_line_bb[opposing_king_square_idx][attacker_square_idx];
-      if (!(line_bb & blockers_for_king_[opposing_color()])) {
-        // nothing between pinner and opposing king
-        // -> it's a check
-        checkers_[opposing_color()] |= attacker;
-        pinners_[opposing_color()] ^= attacker;
+      auto const line_to_edge_bb =
+          bishop_line_to_edge_bb[opposing_king_square_idx][m.from_field_] |
+          rook_line_to_edge_bb[opposing_king_square_idx][m.from_field_];
+      if (line_to_edge_bb & to) {
+        blockers_for_king_[opposing_color()] |= to;
+        return;
       }
-    });
+
+      auto const pinners = line_to_edge_bb & pinners_[opposing_color()];
+      for_each_set_bit(pinners, [&](bitboard const pinner) {
+        auto const pinner_square_idx = cista::trailing_zeros(pinner);
+        auto const line_bb =
+            bishop_line_bb[opposing_king_square_idx][pinner_square_idx] |
+            rook_line_bb[opposing_king_square_idx][pinner_square_idx];
+        if (!(line_bb & blockers_for_king_[opposing_color()])) {
+          // nothing between pinner and opposing king
+          // -> it's a check
+          checkers_[opposing_color()] |= pinner;
+          pinners_[opposing_color()] ^= pinner;
+        }
+      });
+    }
+  };
+
+  // Check if moved piece becomes a blocker for the opposing king.
+  auto const becomes_blocker_for_opposing_king = [&]() {
+    auto const line_to_opposing_king =
+        bishop_line_to_edge_bb[opposing_king_square_idx][m.to_field_] |
+        rook_line_to_edge_bb[opposing_king_square_idx][m.to_field_];
+    if (line_to_opposing_king &&
+        (line_to_opposing_king &
+         ~(bishop_line_bb[opposing_king_square_idx][m.to_field_] |
+           rook_line_bb[opposing_king_square_idx][m.to_field_]) &
+         pinners_[opposing_color()])) {
+      blockers_for_king_[opposing_color()] |= to;
+    }
+  };
+
+  if ((m.to() & piece_states_[KING]) ||
+      m.special_move_ == special_move::CASTLE) {
+    init_blockers_and_pinners<false>(*this, to_move_);
+    blocker_for_opposing_king_move();
+    becomes_blocker_for_opposing_king();
+    checkers_[to_move_] = 0;
+    return;
   }
+
+  // Move own pinner.
+  remove_pinner(opposing_color(), from, m.from_field_);
+
+  // Capture opposing pinner.
+  remove_pinner(to_move_, to, m.to_field_);
+
+  blocker_for_opposing_king_move();
 
   // Blocker for own king was moved.
   // -> remove blocker from bitboard
@@ -599,17 +692,7 @@ void position::update_blockers_and_pinners(move const m) {
     blockers_for_king_[to_move_] ^= from;
   }
 
-  // Check if moved piece becomes a blocker for the opposing king.
-  auto const line_to_opposing_king =
-      bishop_line_to_edge_bb[opposing_king_square_idx][m.to_field_] |
-      rook_line_to_edge_bb[opposing_king_square_idx][m.to_field_];
-  if (line_to_opposing_king &&
-      (line_to_opposing_king &
-       ~(bishop_line_bb[opposing_king_square_idx][m.to_field_] |
-         rook_line_bb[opposing_king_square_idx][m.to_field_]) &
-       pinners_[opposing_color()])) {
-    blockers_for_king_[opposing_color()] |= to;
-  }
+  becomes_blocker_for_opposing_king();
 
   // Check if moved piece becomes a blocker for our king.
   // (-> previous attacker becomes pinner in this case)
@@ -622,10 +705,10 @@ void position::update_blockers_and_pinners(move const m) {
     // Sliders on the same line to our king as the destination of the move
     // excluding pieces between king and destination.
     auto const attackers =
-        line_to_our_king &
-        ~(bishop_line_bb[opposing_king_square_idx][m.to_field_] |
-          rook_line_bb[own_king_square_idx][m.to_field_]) &
-        (pinners_[to_move_] | checkers_[to_move_]);
+        ~to & (line_to_our_king &
+               ~(bishop_line_bb[opposing_king_square_idx][m.to_field_] |
+                 rook_line_bb[own_king_square_idx][m.to_field_]) &
+               (pinners_[to_move_] | checkers_[to_move_]));
 
     // If there is a attacker on the same line
     // -> the piece becomes pinned / blocker for our king
@@ -709,47 +792,41 @@ void position::update_blockers_and_pinners(move const m) {
     checkers_[opposing_color()] |= to;
   }
 
+  if (en_passant & to & piece_states_[PAWN]) {
+    auto const captured_pawn =
+        to_move_ == color::WHITE ? en_passant << 8 : en_passant >> 8;
+    if (captured_pawn & blockers_for_king_[opposing_color()]) {
+      blockers_for_king_[opposing_color()] ^= captured_pawn;
+
+      auto const captured_pawn_square_idx =
+          cista::trailing_zeros(captured_pawn);
+      auto const line_to_opposing_king =
+          bishop_line_to_edge_bb[opposing_king_square_idx]
+                                [captured_pawn_square_idx] |
+          rook_line_to_edge_bb[opposing_king_square_idx]
+                              [captured_pawn_square_idx];
+      for_each_set_bit(
+          line_to_opposing_king & pinners_[opposing_color()],
+          [&](bitboard const pinner) {
+            auto const pinner_square_idx = cista::trailing_zeros(pinner);
+            auto const line_bb =
+                bishop_line_bb[opposing_king_square_idx][pinner_square_idx] |
+                rook_line_bb[opposing_king_square_idx][pinner_square_idx];
+            if (!(line_bb & blockers_for_king_[opposing_color()])) {
+              // nothing between pinner and opposing king
+              // -> it's a check
+              checkers_[opposing_color()] |= pinner;
+              blockers_for_king_[opposing_color()] ^= captured_pawn;
+            }
+          });
+    }
+
+    if (captured_pawn & blockers_for_king_[to_move_]) {
+      blockers_for_king_[to_move_] ^= captured_pawn;
+    }
+  }
+
   checkers_[to_move_] = bitboard{};
-}
-
-void position::init_blockers_and_pinners(color const c) {
-  auto const opposing_color = c == color::WHITE ? color::BLACK : color::WHITE;
-  auto const king_square = pieces(c, KING);
-  auto const king_square_idx = cista::trailing_zeros(king_square);
-  checkers_[c] = knight_attacks_by_origin_square[king_square_idx] &
-                 pieces(opposing_color, KNIGHT);
-  checkers_[c] |= get_attack_squares<BISHOP>(king_square, all_pieces()) &
-                  pieces(opposing_color, BISHOP);
-  checkers_[c] |= get_attack_squares<BISHOP>(king_square, all_pieces()) &
-                  pieces(opposing_color, QUEEN);
-  checkers_[c] |= get_attack_squares<ROOK>(king_square, all_pieces()) &
-                  pieces(opposing_color, ROOK);
-  checkers_[c] |= get_attack_squares<ROOK>(king_square, all_pieces()) &
-                  pieces(opposing_color, QUEEN);
-  checkers_[c] |=
-      pawn_attacks_bb(pieces(c, KING), c) & pieces(opposing_color, PAWN);
-
-  for_each_set_bit(
-      get_attack_squares<BISHOP>(king_square, bitboard{0}) &
-          (pieces(opposing_color, BISHOP) | pieces(opposing_color, QUEEN)) &
-          ~checkers_[c],
-      [&](bitboard const pinner) {
-        pinners_[c] |= pinner;
-        // TODO for_each_set_bit_index
-        blockers_for_king_[c] |=
-            bishop_line_bb[king_square_idx][cista::trailing_zeros(pinner)] &
-            all_pieces();
-      });
-  for_each_set_bit(
-      get_attack_squares<ROOK>(king_square, bitboard{0}) &
-          (pieces(opposing_color, ROOK) | pieces(opposing_color, QUEEN)) &
-          ~checkers_[c],
-      [&](bitboard const pinner) {
-        pinners_[c] |= pinner;
-        blockers_for_king_[c] |=
-            rook_line_bb[king_square_idx][cista::trailing_zeros(pinner)] &
-            all_pieces();
-      });
 }
 
 void position::print_trace(state_info const* const info) const {

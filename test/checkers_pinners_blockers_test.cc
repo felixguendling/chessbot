@@ -31,6 +31,17 @@ std::vector<std::pair<position, state_info>> after_move(position const& p) {
   return r;
 }
 
+TEST_CASE("fen initialization with check") {
+  constexpr auto const pos_fen = "8/k6P/8/8/8/p7/8/K6r w - - 0 2";
+  auto const p = position::from_fen(pos_fen);
+  CHECK(p.checkers_[color::WHITE] == rank_file_to_bitboard(R1, FH));
+  CHECK(p.checkers_[color::BLACK] == bitboard{0});
+  CHECK(p.pinners_[color::WHITE] == bitboard{0});
+  CHECK(p.pinners_[color::BLACK] == bitboard{0});
+  CHECK(p.blockers_for_king_[color::WHITE] == bitboard{0});
+  CHECK(p.blockers_for_king_[color::BLACK] == bitboard{0});
+}
+
 TEST_CASE("ckeckers update") {
   auto const p = position::from_fen(
       "qb4n1/pPP1pbp1/4pprp/PK5P/4R1Rp/2p2p1P/3pnk1p/3R3R b - - 0 1");
