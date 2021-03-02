@@ -822,7 +822,7 @@ TEST_CASE("checking piece becomes pinner after king move") {
   CHECK(moves.find("f3d4") == std::end(moves));
 }
 
-TEST_CASE("???") {
+TEST_CASE("pinner captured") {
   auto p = test_position{
       "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
 
@@ -841,4 +841,25 @@ TEST_CASE("???") {
     moves.emplace(m.to_str());
   }
   CHECK(moves.find("c5a3") == std::end(moves));
+}
+
+TEST_CASE("???") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+
+  p.make_move("f3d4");
+  p.make_move("b6c5");
+  p.make_move("g1f2");
+  p.make_move("f6d5");
+  p.make_move("h6f7");
+  p.make_move("e8g8");
+  p.print();
+
+  auto moves = std::set<std::string>{};
+  auto move_list = std::array<move, max_moves>{};
+  auto const end = generate_moves(p, &move_list[0]);
+  for (auto const& m : utl::all(&move_list[0], end) | utl::iterable()) {
+    moves.emplace(m.to_str());
+  }
+  CHECK(moves.find("f7h8") == std::end(moves));
 }

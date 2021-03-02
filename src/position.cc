@@ -598,12 +598,10 @@ void position::update_blockers_and_pinners(move const m,
                                  unsigned const removed_pinner_square_idx) {
     if (pinners_[c] & removed_pinner_bb) {
       pinners_[c] ^= removed_pinner_bb;
-
+      auto const king_square_idx = cista::trailing_zeros(pieces(c, KING));
       auto const line_to_edge_bb =
-          (bishop_line_to_edge_bb[opposing_king_square_idx]
-                                 [removed_pinner_square_idx] |
-           rook_line_to_edge_bb[opposing_king_square_idx]
-                               [removed_pinner_square_idx]);
+          (bishop_line_to_edge_bb[king_square_idx][removed_pinner_square_idx] |
+           rook_line_to_edge_bb[king_square_idx][removed_pinner_square_idx]);
 
       if (!(blockers_for_king_[c] & removed_pinner_bb)) {
         // Piece was a pinner but not a blocker (last in line).
@@ -613,9 +611,9 @@ void position::update_blockers_and_pinners(move const m,
             line_to_edge_bb & pinners_[c],
             [&](bitboard const remaining_pinner) {
               blockers_for_king_[c] |=
-                  (bishop_line_bb[opposing_king_square_idx]
+                  (bishop_line_bb[king_square_idx]
                                  [cista::trailing_zeros(remaining_pinner)] |
-                   rook_line_bb[opposing_king_square_idx]
+                   rook_line_bb[king_square_idx]
                                [cista::trailing_zeros(remaining_pinner)]) &
                   all_pieces();
             });
@@ -674,6 +672,17 @@ void position::update_blockers_and_pinners(move const m,
     blocker_for_opposing_king_move();
     becomes_blocker_for_opposing_king();
     checkers_[to_move_] = 0;
+    if (m.special_move_ == special_move::CASTLE) {
+      auto dumb_psuedo_move =
+          move{m.to(), to_move_ == color::WHITE
+                           ? (m.to() & full_file_bitboard(FH)
+                                  ? rank_file_to_bitboard(R1, FF)
+                                  : rank_file_to_bitboard(R1, FD))
+                           : (m.to() & full_file_bitboard(FH)
+                                  ? rank_file_to_bitboard(R8, FF)
+                                  : rank_file_to_bitboard(R8, FD))};
+      update_blockers_and_pinners(dumb_psuedo_move, 0);
+    }
     return;
   }
 
