@@ -7,6 +7,7 @@
 
 #include "utl/pipes.h"
 
+#include "chessbot/dfs.h"
 #include "chessbot/generate_moves.h"
 #include "chessbot/position.h"
 
@@ -866,4 +867,39 @@ TEST_CASE("???") {
     moves.emplace(m.to_str());
   }
   CHECK(moves.find("f7h8") == std::end(moves));
+}
+
+TEST_CASE("dfs startpos 5") {
+  auto p = test_position{start_position_fen};
+  CHECK(119060324 == dfs_rec(p, 0U, 6, nullptr));
+}
+
+TEST_CASE("kiwipete") {
+  auto p = test_position{
+      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -"};
+  CHECK(193690690 == dfs_rec(p, 0U, 5, nullptr));
+}
+
+TEST_CASE("position 3 - invalid en passant") {
+  auto p = test_position{"8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -"};
+  CHECK(11030083 == dfs_rec(p, 0U, 6, nullptr));
+}
+
+TEST_CASE("position 4 - chaos") {
+  auto p = test_position{
+      "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"};
+  CHECK(15833292 == dfs_rec(p, 0U, 5, nullptr));
+}
+
+TEST_CASE("position 5 - pin by castle") {
+  auto p = test_position{
+      "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"};
+  CHECK(89941194 == dfs_rec(p, 0U, 5, nullptr));
+}
+
+TEST_CASE("position 5 - pin by castle") {
+  auto p = test_position{
+      "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 "
+      "10"};
+  CHECK(164075551 == dfs_rec(p, 0U, 5, nullptr));
 }

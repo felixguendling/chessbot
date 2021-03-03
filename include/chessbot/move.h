@@ -35,6 +35,8 @@ struct move {
   friend std::ostream& operator<<(std::ostream&, move);
   std::string to_str() const;
 
+  bool is_initialized() const { return from_field_ != 0U || to_field_ != 0U; }
+
   friend bool operator==(move const a, move const b) {
     return std::tie(a.from_field_, a.to_field_, a.promotion_piece_type_,
                     a.special_move_) == std::tie(b.from_field_, b.to_field_,

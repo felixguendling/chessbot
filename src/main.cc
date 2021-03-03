@@ -1,76 +1,13 @@
-#include <atomic>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <vector>
 
-#include "chessbot/generate_moves.h"
+#include "chessbot/dfs.h"
 #include "chessbot/position.h"
 #include "chessbot/timing.h"
 
 using namespace chessbot;
-
-template <bool IsRoot = false>
-size_t dfs_rec(position& p, unsigned const current_depth,
-               unsigned const max_depth, state_info const* const info_ptr) {
-  if (p.half_move_clock_ == 100 || count_repetitions(p, info_ptr) >= 3U) {
-    return 1U;
-  }
-
-  auto const copy = p;
-  auto leaf_nodes = size_t{0U};
-
-  std::array<move, max_moves> move_list;
-  auto const begin = &move_list[0];
-  auto const end = generate_moves(p, begin);
-  if (current_depth + 1 == max_depth) {
-    if (IsRoot) {
-      for (auto it = begin; it != end; ++it) {
-        printf("%s 1\n", it->to_str().c_str());
-      }
-    }
-    leaf_nodes += (end - begin);
-  } else {
-    for (auto it = begin; it != end; ++it) {
-      auto const s = p.make_move(*it, info_ptr);
-      auto const leaves = dfs_rec(p, current_depth + 1, max_depth, &s);
-      if (IsRoot) {
-        printf("%s %zu\n", it->to_str().c_str(), leaves);
-      }
-      leaf_nodes += leaves;
-      p = copy;
-    }
-  }
-
-  return leaf_nodes;
-}
-
-template <typename T, size_t Size>
-struct stack {
-  using container_t = std::array<T, Size>;
-  template <typename... Args>
-  T& push(Args&&... args) {
-    elements_[size_] = T{std::forward<Args>(args)...};
-    ++size_;
-    return elements_[size_ - 1];
-  }
-
-  size_t size() const { return size_; }
-  T& pop() {
-    assert(!empty());
-    return elements_[--size_];
-  }
-  T& top() {
-    assert(!empty());
-    return elements_[size_ - 1];
-  }
-  bool empty() const { return size_ == 0U; }
-  typename container_t::iterator begin() { return begin(elements_); }
-  typename container_t::iterator end() { return begin(elements_) + size_; }
-
-  std::array<T, Size> elements_{};
-  size_t size_{0U};
-};
 
 int main(int argc, char** argv) {
   if (argc < 3) {
