@@ -82,6 +82,12 @@ unsigned mcts(position const& p, unsigned const number_of_games,
     ++contingents[indices[rest_games_i]];
   }
 
+  if constexpr (IsRoot) {
+    for (auto& c : contingents) {
+      c = std::max(1U, c);
+    }
+  }
+
   i = 0U;
   auto called = false;
   for (auto it = begin; it != end; ++it, ++i) {

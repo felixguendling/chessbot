@@ -582,6 +582,10 @@ state_info position::make_move(move const m,
 
 void position::update_blockers_and_pinners(move const m,
                                            bitboard const en_passant) {
+  //  init_blockers_and_pinners<true>(*this, to_move_);
+  //  init_blockers_and_pinners<true>(*this, opposing_color());
+  //  return;
+
   auto const from = m.from();
   auto const to = m.to();
 

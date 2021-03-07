@@ -44,5 +44,5 @@ int main(int argc, char** argv) {
   auto const result = dfs_rec<true>(p, 0U, depth, prev_state_info());
   CHESSBOT_STOP_TIMING(dfs_rec);
   std::cout << "\n" << result << "\n";
-  //  std::cout << CHESSBOT_TIMING_MS(dfs_rec) << "ms\n";
+  std::cout << CHESSBOT_TIMING_MS(dfs_rec) << "ms\n";
 }
