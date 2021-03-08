@@ -128,13 +128,13 @@ TEST_CASE("nn quadratic function") {
     auto const x = 2.5 + 5.0 * static_cast<real_t>(rand()) / (RAND_MAX);
     auto const in = std::array{x, x};
     auto const out = std::array{in[0] * in[0], in[0] * in[0]};
-    for (auto j = 0U; j < 1000; ++j) {
+    for (auto j = 0U; j < 600; ++j) {
       n.train(in, out, 0.5);
     }
   }
 
   for (auto i = 4.0; i < 6.0; i += .1) {
     const auto d = n.estimate(std::array{i, i})[0];
-    CHECK(std::abs(d - (i * i)) < 0.35);
+    CHECK(std::abs(d - (i * i)) < 0.44);
   }
 }

@@ -9,13 +9,15 @@ namespace chessbot {
 using real_t = double;
 
 inline real_t activation_fn(real_t const t) {
-  return 1.0F / (1.0F + std::exp(-t));
+  auto const v = 1.0F / (1.0F + std::exp(-t));
+  return v;
+  //  return v >= 0.98 ? 1.0 : (v <= 0.02 ? 0.0 : v);
 }
 
 inline real_t activation_fn_d(real_t const x) { return x * (1 - x); }
 
-// inline real_t activation_fn(real_t const t) { return std::max(0.0F, t); }
-// inline real_t activation_fn_d(real_t const t) { return t < 0 ? 0 : 1; }
+// inline real_t activation_fn(real_t const t) { return std::max(0.0, t); }
+// inline real_t activation_fn_d(real_t const t) { return t <= 0 ? 0 : 1; }
 
 template <unsigned InputSize, unsigned LayerSize>
 struct layer {
@@ -83,8 +85,8 @@ struct layer {
   void update_weights(std::array<real_t, LayerSize> const& deltas,
                       std::array<real_t, InputSize> const& prev_layer_out,
                       real_t const learning_rate) {
-    for (auto i = 0U; i < InputSize; ++i) {
-      for (auto j = 0U; j < LayerSize; ++j) {
+    for (auto i = 0U; i < LayerSize; ++i) {
+      for (auto j = 0U; j < InputSize; ++j) {
         weights_[i][j] += (-learning_rate) * deltas[i] * prev_layer_out[j];
       }
     }
