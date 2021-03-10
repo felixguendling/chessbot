@@ -54,7 +54,7 @@ TEST_CASE("nn classifies legal moves - one position") {
   }
 
   for (auto j = 0; j < 1000; ++j) {
-    n->train(input, expected, 0.5);
+    n->train(input, expected, 0.3);
   }
 
   auto const output = n->estimate(nn_input_from_position(p));

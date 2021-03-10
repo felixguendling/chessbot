@@ -21,18 +21,17 @@ inline real_t activation_fn_d(real_t const x) { return x * (1 - x); }
 
 template <unsigned InputSize, unsigned LayerSize>
 struct layer {
+  static constexpr auto const input_size = InputSize;
   static constexpr auto const layer_size = LayerSize;
 
   layer() {
     for (auto& x : weights_) {
       for (auto& y : x) {
         y = -1.0 + 2 * ((double)rand() / (RAND_MAX));
-        //        y = 0.5;
       }
     }
     for (auto& b : bias_weight_) {
       b = -1.0 + 2 * ((double)rand() / (RAND_MAX));
-      //      b = 0.5;
     }
   }
 
@@ -60,12 +59,13 @@ struct layer {
   template <typename NextLayer>
   std::array<real_t, LayerSize> deltas(
       NextLayer const& next, std::array<real_t, LayerSize> const& out,
-      std::array<real_t, NextLayer::layer_size> const& delta) const {
+      std::array<real_t, NextLayer::layer_size> const& next_layer_deltas)
+      const {
     auto deltas = std::array<real_t, LayerSize>{};
     for (auto j = 0U; j < LayerSize; ++j) {
       auto sum = 0.0F;
-      for (auto k = 0U; k < deltas.size(); ++k) {
-        sum += delta[k] * next.weights_[k][j];
+      for (auto k = 0U; k < next_layer_deltas.size(); ++k) {
+        sum += next_layer_deltas[k] * next.weights_[k][j];
       }
       deltas[j] = activation_fn_d(out[j]) * sum;
     }
@@ -90,6 +90,9 @@ struct layer {
         weights_[i][j] += (-learning_rate) * deltas[i] * prev_layer_out[j];
       }
     }
+    //    for (auto i = 0U; i < LayerSize; ++i) {
+    //      bias_weight_[i] += (-learning_rate) * deltas[i];
+    //    }
   }
 
   std::array<std::array<real_t, InputSize>, LayerSize> weights_;
