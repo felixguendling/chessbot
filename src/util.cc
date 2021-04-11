@@ -21,4 +21,10 @@ std::string bitboard_to_str(bitboard const bb) {
   return str;
 }
 
+uint8_t name_to_square(std::string_view square_name) {
+  auto const file = square_name[0] - 'a';
+  auto const rank = 8 - (square_name[1] - '0');
+  return rank * 8 + file;
+}
+
 }  // namespace chessbot

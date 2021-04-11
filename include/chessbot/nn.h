@@ -6,15 +6,33 @@
 
 namespace chessbot {
 
-using real_t = double;
+using real_t = float;
 
+// ### TANH ###
+// inline real_t activation_fn(real_t const t) { return std::tanh(t); }
+// inline real_t activation_fn_d(real_t const x) { return 1 - (x * x); }
+// inline real_t scale_to_output(real_t const min, real_t const max,
+//                              real_t const v) {
+//  return min + ((1.0 + v) / 2.0) * (max - min);
+//}
+// inline real_t scale_from_output(real_t const min, real_t const max,
+//                                real_t const v) {
+//  return -1.0 + 2 * ((v - min) / (max - min));
+//}
+
+// ### SIGMOID ###
 inline real_t activation_fn(real_t const t) {
-  auto const v = 1.0F / (1.0F + std::exp(-t));
-  return v;
-  //  return v >= 0.98 ? 1.0 : (v <= 0.02 ? 0.0 : v);
+  return 1.0F / (1.0F + std::exp(-t));
 }
-
 inline real_t activation_fn_d(real_t const x) { return x * (1 - x); }
+inline real_t scale_to_output(real_t const min, real_t const max,
+                              real_t const v) {
+  return min + v * (max - min);
+}
+inline real_t scale_from_output(real_t const min, real_t const max,
+                                real_t const v) {
+  return (v - min) / (max - min);
+}
 
 // inline real_t activation_fn(real_t const t) { return std::max(0.0, t); }
 // inline real_t activation_fn_d(real_t const t) { return t <= 0 ? 0 : 1; }
@@ -24,15 +42,31 @@ struct layer {
   static constexpr auto const input_size = InputSize;
   static constexpr auto const layer_size = LayerSize;
 
-  layer() {
+  layer() = default;
+
+  void init_random() {
     for (auto& x : weights_) {
       for (auto& y : x) {
-        y = -1.0 + 2 * ((double)rand() / (RAND_MAX));
+        auto const z = 1.0 / std::sqrt(InputSize);
+        y = -z + 2 * z * ((double)rand() / (RAND_MAX));
+        // TODO for ReLU: only positive values?
       }
     }
     for (auto& b : bias_weight_) {
-      b = -1.0 + 2 * ((double)rand() / (RAND_MAX));
+      b = 0.0;
     }
+  }
+
+  layer& operator+=(layer const& o) {
+    for (auto i = 0U; i != weights_.size(); ++i) {
+      for (auto j = 0U; j != weights_[i].size(); ++j) {
+        weights_[i][j] += o.weights_[i][j];
+      }
+    }
+    for (auto i = 0U; i != bias_weight_.size(); ++i) {
+      bias_weight_[i] += o.bias_weight_[i];
+    }
+    return *this;
   }
 
   std::array<real_t, LayerSize> net(
@@ -90,13 +124,13 @@ struct layer {
         weights_[i][j] += (-learning_rate) * deltas[i] * prev_layer_out[j];
       }
     }
-    //    for (auto i = 0U; i < LayerSize; ++i) {
-    //      bias_weight_[i] += (-learning_rate) * deltas[i];
-    //    }
+    for (auto i = 0U; i < LayerSize; ++i) {
+      bias_weight_[i] += (-learning_rate) * deltas[i];
+    }
   }
 
-  std::array<std::array<real_t, InputSize>, LayerSize> weights_;
-  std::array<real_t, LayerSize> bias_weight_;
+  std::array<std::array<real_t, InputSize>, LayerSize> weights_{};
+  std::array<real_t, LayerSize> bias_weight_{};
 };
 
 template <unsigned InputSize, unsigned... LayerSizes>
@@ -137,33 +171,37 @@ struct network {
   using output_t = std::array<real_t, layer_sizes.back()>;
 
   explicit network(real_t const min = 0.0, real_t const max = 1.0)
-      : min_{min}, max_{max} {}
+      : min_{min}, max_{max} {
+    init_random();
+  }
 
-  real_t scale_to_output(real_t const v) { return min_ + v * (max_ - min_); }
-
-  real_t scale_from_output(real_t const v) {
-    return (v - min_) / (max_ - min_);
+  template <size_t I = number_of_layers - 1>
+  void init_random() {
+    std::get<I>(layers_).init_random();
+    if constexpr (I != 0U) {
+      init_random<I - 1>();
+    }
   }
 
   template <size_t I, typename std::enable_if_t<I == 0>* = nullptr>
-  auto e(input_t const& in) {
+  auto e(input_t const& in) const {
     return std::get<0>(layers_).estimate(in);
   }
 
   template <size_t I, typename std::enable_if_t<I != 0>* = nullptr>
-  auto e(input_t const& in) {
+  auto e(input_t const& in) const {
     return std::get<I>(layers_).estimate(e<I - 1>(in));
   }
 
-  output_t estimate(input_t const& in) {
+  output_t estimate(input_t const& in) const {
     auto scaled_input = in;
     for (auto& s : scaled_input) {
-      s = scale_from_output(s);
+      s = scale_from_output(min_, max_, s);
     }
 
     auto result = e<number_of_layers - 1>(scaled_input);
     for (auto& r : result) {
-      r = scale_to_output(r);
+      r = scale_to_output(min_, max_, r);
     }
     return result;
   }
@@ -195,31 +233,80 @@ struct network {
   }
 
   template <size_t I, typename std::enable_if_t<I == 0>* = nullptr>
-  void update_weights(layer_outputs_t const& outs, deltas_t const& deltas,
-                      real_t const learning_rate) {
-    std::get<I>(layers_).update_weights(std::get<I>(deltas), std::get<I>(outs),
-                                        learning_rate);
+  void update_weights(layers_tuple_t& layers, layer_outputs_t const& outs,
+                      deltas_t const& deltas, real_t const learning_rate) {
+    std::get<I>(layers).update_weights(std::get<I>(deltas), std::get<I>(outs),
+                                       learning_rate);
   }
 
   template <size_t I, typename std::enable_if_t<I != 0>* = nullptr>
-  void update_weights(layer_outputs_t const& outs, deltas_t const& deltas,
-                      real_t const learning_rate) {
-    std::get<I>(layers_).update_weights(std::get<I>(deltas), std::get<I>(outs),
-                                        learning_rate);
-    update_weights<I - 1>(outs, deltas, learning_rate);
+  void update_weights(layers_tuple_t& layers, layer_outputs_t const& outs,
+                      deltas_t const& deltas, real_t const learning_rate) {
+    std::get<I>(layers).update_weights(std::get<I>(deltas), std::get<I>(outs),
+                                       learning_rate);
+    update_weights<I - 1>(layers, outs, deltas, learning_rate);
   }
 
-  void train(input_t const& in, output_t const& expected,
-             real_t const learning_rate) {
+  template <size_t BatchSize, size_t I = number_of_layers - 1>
+  void divide_by_batch_size(layers_tuple_t& sum) {
+    auto& l = std::get<I>(sum);
+    for (auto i = 0; i < l.weights_.size(); ++i) {
+      for (auto j = 0; j < l.weights_[i].size(); ++j) {
+        l.weights_[i][j] /= BatchSize;
+      }
+      l.bias_weight_[i] /= BatchSize;
+    }
+    if constexpr (I != 0) {
+      divide_by_batch_size<BatchSize, I - 1>(sum);
+    }
+  }
+
+  template <size_t I = number_of_layers - 1>
+  void zero_out(layers_tuple_t& sum) {
+    auto& l = std::get<I>(sum);
+    for (auto i = 0; i < l.weights_.size(); ++i) {
+      for (auto j = 0; j < l.weights_[i].size(); ++j) {
+        l.weights_[i][j] = 0;
+      }
+      l.bias_weight_[i] = 0;
+    }
+    if constexpr (I != 0) {
+      zero_out<I - 1>(sum);
+    }
+  }
+
+  template <size_t I = number_of_layers - 1>
+  void add(layers_tuple_t& sum, layers_tuple_t const& copy) {
+    std::get<I>(sum) += std::get<I>(copy);
+    if constexpr (I != 0U) {
+      add<I - 1>(sum, copy);
+    }
+  }
+
+  template <size_t BatchSize>
+  void train_epoch(std::array<input_t, BatchSize> const& in,
+                   std::array<output_t, BatchSize> const& expected,
+                   real_t const learning_rate) {
+    zero_out(sum_);
+    for (auto batch_idx = 0; batch_idx < BatchSize; ++batch_idx) {
+      copy_ = layers_;
+      train(sum_, in[batch_idx], expected[batch_idx], learning_rate);
+    }
+    divide_by_batch_size<BatchSize>(sum_);
+    add(layers_, sum_);
+  }
+
+  void train(layers_tuple_t& sum_layers, input_t const& in,
+             output_t const& expected, real_t const learning_rate) {
     auto outs = layer_outputs_t{};
     std::get<0>(outs) = in;
     for (auto& s : std::get<0>(outs)) {
-      s = scale_from_output(s);
+      s = scale_from_output(min_, max_, s);
     }
 
     auto scaled_expected = expected;
     for (auto& s : scaled_expected) {
-      s = scale_from_output(s);
+      s = scale_from_output(min_, max_, s);
     }
 
     compute_outputs<0>(outs);
@@ -235,58 +322,17 @@ struct network {
     auto& last_layer_deltas = std::get<number_of_layers - 1>(deltas);
     last_layer_deltas = last_layer.deltas(diff, last_layer_out);
     compute_deltas<number_of_layers - 2>(outs, deltas);
-    update_weights<number_of_layers - 1>(outs, deltas, learning_rate);
+    update_weights<number_of_layers - 1>(sum_layers, outs, deltas,
+                                         learning_rate);
   }
 
-  /*
-  output_t estimate1(input_t const& in) {
-    auto scaled_input = in;
-    for (auto& s : scaled_input) {
-      s = scale_from_output(s);
-    }
-
-    auto& l1 = std::get<0>(layers_);
-    auto& l2 = std::get<1>(layers_);
-    auto result = l2.estimate(l1.estimate(scaled_input));
-    for (auto& r : result) {
-      r = scale_to_output(r);
-    }
-    return result;
+  void train(input_t const& in, output_t const& expected,
+             real_t const learning_rate) {
+    train(layers_, in, expected, learning_rate);
   }
-
-  void train1(input_t const& in, output_t const& expected,
-              real_t const learning_rate) {
-    auto scaled_input = in;
-    for (auto& s : scaled_input) {
-      s = scale_from_output(s);
-    }
-
-    auto scaled_expected = expected;
-    for (auto& s : scaled_expected) {
-      s = scale_from_output(s);
-    }
-
-    auto& l1 = std::get<0>(layers_);
-    auto& l2 = std::get<1>(layers_);
-
-    auto const l1_out = l1.estimate(scaled_input);
-    auto const l2_out = l2.estimate(l1_out);
-
-    auto diff = std::array<real_t, 2>{};
-    for (auto i = 0U; i < l2_out.size(); ++i) {
-      diff[i] = scaled_expected[i] - l2_out[i];
-    }
-
-    auto const l2_deltas = l2.deltas(diff, l2_out);
-    auto const l1_deltas = l1.deltas(l2, l1_out, l2_deltas);
-
-    l2.update_weights(l2_deltas, l1_out, learning_rate);
-    l1.update_weights(l1_deltas, scaled_input, learning_rate);
-  }
-  */
 
   real_t min_, max_;
-  layers_tuple_t layers_;
+  layers_tuple_t layers_{}, copy_{}, sum_{};
 };
 
 }  // namespace chessbot

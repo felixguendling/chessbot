@@ -9,6 +9,7 @@
 
 #include "chessbot/constants.h"
 #include "chessbot/move.h"
+#include "chessbot/pgn.h"
 #include "chessbot/util.h"
 #include "chessbot/zobrist.h"
 
@@ -61,6 +62,8 @@ struct position {
 
   void print() const;
   state_info make_move(move, state_info const* prev_state);
+  state_info make_pgn_move(game::move const&,
+                           state_info const* const prev_state);
   void update_blockers_and_pinners(move, bitboard en_passant);
   std::string to_str() const;
   std::string to_fen() const;

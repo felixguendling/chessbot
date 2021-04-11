@@ -10,3 +10,15 @@
   url=git@github.com:felixguendling/cista.git
   branch=master
   commit=83c760166dd8dc069ad939143011e0921ccb5acd
+[matplotplusplus]
+  url=git@github.com:alandefreitas/matplotplusplus.git
+  branch=master
+  commit=e3e48e25505fd5b6cff4d53b0c33c29dcaf9f88e
+[stockfish]
+  url=git@github.com:felixguendling/Stockfish.git
+  branch=master
+  commit=ec42154ef2569a58dae2164e328d5bbffcb2aee9
+[boost]
+  url=git@github.com:motis-project/boost.git
+  branch=master
+  commit=bca212ca286121db1e7eb2efa9ee8de626633481

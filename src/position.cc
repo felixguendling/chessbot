@@ -381,6 +381,73 @@ std::string position::to_str() const {
   return ss.str();
 }
 
+state_info position::make_pgn_move(game::move const& pgn_move,
+                                   state_info const* const prev_state) {
+  auto m = move{};
+  m.promotion_piece_type_ = pgn_move.promotion_piece_type_;
+  m.to_field_ = pgn_move.to_;
+  m.special_move_ = special_move::NONE;
+  if (pgn_move.promotion_piece_type_ != game::move::no_promotion) {
+    m.special_move_ = special_move::PROMOTION;
+  } else if (pgn_move.castle_ != game::move::castle::NONE) {
+    m.special_move_ = special_move::CASTLE;
+    m.from_field_ = cista::trailing_zeros(
+        full_rank_bitboard(to_move_ == color::WHITE ? R1 : R8) &
+        full_file_bitboard(FE));
+    m.to_field_ = cista::trailing_zeros(
+        full_rank_bitboard(to_move_ == color::WHITE ? R1 : R8) &
+        full_file_bitboard(pgn_move.castle_ == game::move::castle::SHORT ? FH
+                                                                         : FA));
+    return make_move(m, prev_state);
+  }
+
+  auto const pt = pgn_move.piece_;
+  auto const to = m.to();
+  auto const source_squares = [&]() {
+    switch (pt) {
+      case KING: return pieces(to_move_, KING);
+      case PAWN: {
+        const auto north = to_move_ == color::WHITE ? -1 : 1;
+        if ((pieces_by_color_[opposing_color()] | en_passant_) & to) {
+          return safe_north_west(to, north, 1) | safe_north_west(to, north, -1);
+        } else {
+          auto const one_step_source = safe_north_west(to, north * 1, 0);
+          if ((one_step_source & pieces(to_move_, piece_type::PAWN)) != 0) {
+            return one_step_source;
+          }
+          return safe_north_west(to, north * 2, 0);
+        }
+      }
+      case KNIGHT: return knight_attacks_by_origin_square[m.to_field_];
+      case QUEEN:
+        return get_attack_squares<ROOK>(to, all_pieces()) |
+               get_attack_squares<BISHOP>(to, all_pieces());
+      case ROOK: return get_attack_squares<ROOK>(to, all_pieces());
+      case BISHOP: return get_attack_squares<BISHOP>(to, all_pieces());
+      default: utl::verify(false, "unknown piece type"); return bitboard{};
+    }
+  };
+
+  auto from_candidates = full_bitboard;
+  if (pgn_move.from_rank_ != game::move::unknown) {
+    from_candidates &= full_rank_bitboard(7 - (pgn_move.from_rank_ - '1'));
+  }
+  if (pgn_move.from_file_ != game::move::unknown) {
+    from_candidates &= full_file_bitboard(pgn_move.from_file_ - 'a');
+  }
+
+  auto const from_bb =
+      pieces(to_move_, pt) & source_squares() & from_candidates;
+  utl::verify(std::popcount(from_bb) == 1,
+              "move [{}]: not exactly one origin square: \nsource "
+              "squares\n{}\npieces\n{}\nfrom candidates\n{}\n",
+              pgn_move, bitboard_to_str(source_squares()),
+              bitboard_to_str(pieces(to_move_, pt)),
+              bitboard_to_str(from_candidates));
+  m.from_field_ = cista::trailing_zeros(from_bb);
+  return make_move(m, prev_state);
+}
+
 state_info position::make_move(move const m,
                                state_info const* const prev_state) {
 #ifndef NDEBUG
