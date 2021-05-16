@@ -66,6 +66,62 @@ TEST_CASE("nn simple") {
   CHECK(l1.weights_[1][1] == doctest::Approx(0.29950229));
 }
 
+TEST_CASE("nn adam update") {
+  auto l1 = layer<2, 2>{};
+  l1.weights_[0][0] = 0.15F;
+  l1.weights_[0][1] = 0.20F;
+  l1.weights_[1][0] = 0.25F;
+  l1.weights_[1][1] = 0.30F;
+  l1.bias_weight_[0] = 0.35F;
+  l1.bias_weight_[1] = 0.35F;
+
+  auto l2 = layer<2, 2>{};
+  l2.weights_[0][0] = 0.40F;
+  l2.weights_[0][1] = 0.45F;
+  l2.weights_[1][0] = 0.50F;
+  l2.weights_[1][1] = 0.55F;
+  l2.bias_weight_[0] = 0.60F;
+  l2.bias_weight_[1] = 0.60F;
+
+  auto const input = std::array{real_t{0.05}, real_t{0.1}};
+  auto const expected = std::array{real_t{0.01}, real_t{0.99}};
+
+  auto const l1_net = l1.net(input);
+  auto const l2_net = l2.net(l1.estimate(input));
+
+  auto const l1_out = l1.estimate(input);
+  auto const l2_out = l2.estimate(l1_out);
+
+  auto const diff =
+      std::array{expected[0] - l2_out[0], expected[1] - l2_out[1]};
+  auto const l2_deltas = l2.deltas(diff, l2_out);
+  auto const l1_deltas = l1.deltas(l2, l1_out, l2_deltas);
+
+  auto l1_m = layer<2, 2>{};
+  auto l2_m = layer<2, 2>{};
+  auto l1_v = layer<2, 2>{};
+  auto l2_v = layer<2, 2>{};
+
+  constexpr auto const beta1 = 0.9;
+  constexpr auto const beta2 = 0.999;
+  constexpr auto const inner_loop_size = 1000;
+  constexpr auto const alpha = 0.001;
+
+  // TODO learn quadratic function
+  // TODO parallel: normal update instead of adam to compare errors
+
+  for (auto i = 0U; i != inner_loop_size; ++i) {
+    l1_m.adam_assign_moment<false>(l1_deltas, l1_out, beta1, i);
+    l2_m.adam_assign_moment<false>(l2_deltas, input, beta1, i);
+    l1_v.adam_assign_moment<true>(l1_deltas, l1_out, beta2, i);
+    l2_v.adam_assign_moment<true>(l2_deltas, input, beta2, i);
+    l1.adam_update_weights(l1_m, l1_v, alpha);
+    l2.adam_update_weights(l2_m, l2_v, alpha);
+
+    // TODO plot error
+  }
+}
+
 TEST_CASE("nn test") {
   network<2, 2, 2> n;
   auto& [l1, l2] = n.layers_;

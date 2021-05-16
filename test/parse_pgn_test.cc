@@ -40,6 +40,7 @@ TEST_CASE("pgn parse pgn") {
   CHECK(h.elo_black_ == 1954);
   CHECK(h.start_time_ == 600);
   CHECK(h.time_increment_ == 10);
+  CHECK(h.site_ == "https://lichess.org/z0CDaIfk");
   REQUIRE(!pgn.empty());
   CHECK(pgn[0] == '1');
 }
@@ -248,4 +249,37 @@ TEST_CASE("pgn black move numbers") {
 
   auto const g = parse_pgn(pgn);
   CHECK(g.moves_.size() == 5);
+}
+
+TEST_CASE("pgn pinned") {
+  auto pgn = utl::cstr{R"([Event "Rated Blitz game"]
+[Site "https://lichess.org/mJUymeRl"]
+[Date "2017.03.31"]
+[White "frefafi35"]
+[Black "Petrovich63"]
+[Result "1-0"]
+[UTCDate "2017.03.31"]
+[UTCTime "22:04:04"]
+[WhiteElo "2152"]
+[BlackElo "2231"]
+[WhiteRatingDiff "+103"]
+[BlackRatingDiff "-10"]
+[Variant "Standard"]
+[TimeControl "180+3"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation, Botvinnik-Carls Defense"]
+[Termination "Time forfeit"]
+[Annotator "lichess.org"]
+
+1. e4 c6 2. d4 d5 3. e5 c5 { B12 Caro-Kann Defense: Advance Variation, Botvinnik-Carls Defense } 4. dxc5 Nc6 5. Bb5 Qa5+?! { (-0.09 → 0.53) Inaccuracy. e6 was best. } (5... e6 6. Be3 Ne7 7. Nf3 Nf5 8. Bg5 Qa5+ 9. Nc3 Bxc5 10. O-O h6 11. Bf4 O-O 12. a3) 6. Nc3 e6 7. Be3 Ne7 8. a3 Nf5 9. Nf3 Nxe3 10. fxe3 Qc7 11. e4 Bxc5?! { (0.68 → 1.54) Inaccuracy. a6 was best. } (11... a6 12. exd5 axb5 13. dxc6 Bxc5 14. b4 Be7 15. Nxb5 Qxc6 16. Nd6+ Bxd6 17. exd6 Ra6 18. Qd3) 12. exd5 exd5 13. Qxd5 Bb6 14. Qe4 O-O? { (1.65 → 3.25) Mistake. Be6 was best. } (14... Be6 15. O-O-O Rd8 16. Rxd8+ Qxd8 17. Bxc6+ bxc6 18. Qxc6+ Qd7 19. Qe4 O-O 20. Rd1 Qc8 21. Nd4) 15. Nd5 Qd8 16. Bd3 g6 17. Nf6+ Kg7 18. O-O-O Be6?! { (2.59 → 3.61) Inaccuracy. Qe7 was best. } (18... Qe7 19. g4) 19. h4 Qe7?! { (3.41 → 4.89) Inaccuracy. Bd4 was best. } (19... Bd4 20. Bb5 Bf5 21. Qe2 Qb6 22. g4 Be6 23. h5 Rad8 24. hxg6 Be3+ 25. Kb1 Rxd1+ 26. Rxd1) 20. h5 Rh8 21. Qf4 Nxe5? { (4.20 → 9.84) Mistake. Rad8 was best. } (21... Rad8) 22. h6+ Kf8 23. Qxe5 { White wins on time. } 1-0)"};
+
+  auto const g = parse_pgn(pgn);
+  CHECK(g.moves_.size() == 47);
+
+  auto p = position::from_fen(start_position_fen);
+  for (auto const& m : g.moves_) {
+    p.make_pgn_move(m, nullptr);
+  }
+  CHECK(p.to_fen() ==
+        "r4k1r/pp2qp1p/1b2bNpP/4Q3/8/P2B1N2/1PP3P1/2KR3R b - - 0 23");
 }

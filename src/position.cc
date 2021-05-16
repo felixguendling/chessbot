@@ -436,8 +436,19 @@ state_info position::make_pgn_move(game::move const& pgn_move,
     from_candidates &= full_file_bitboard(pgn_move.from_file_ - 'a');
   }
 
-  auto const from_bb =
-      pieces(to_move_, pt) & source_squares() & from_candidates;
+  auto from_bb = pieces(to_move_, pt) & source_squares() & from_candidates;
+
+  auto pinned = bitboard{};
+  const auto king_square_idx = cista::trailing_zeros(pieces(to_move_, KING));
+  for_each_set_bit(from_bb, [&](bitboard const candidate) {
+    if ((candidate & blockers_for_king_[to_move_]) &&
+        !blocker_can_move(*this, king_square_idx, candidate, m.to(),
+                          m.to() & en_passant_)) {
+      pinned |= candidate;
+    }
+  });
+  from_bb &= ~pinned;
+
   utl::verify(std::popcount(from_bb) == 1,
               "move [{}]: not exactly one origin square: \nsource "
               "squares\n{}\npieces\n{}\nfrom candidates\n{}\n",

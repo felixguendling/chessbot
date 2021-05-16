@@ -75,6 +75,8 @@ game::header parse_header(utl::cstr& pgn) {
       utl::verify(std::from_chars(begin(value), end(value), h.elo_black_).ec ==
                       std::errc{},
                   "could not parse black elo \"{}\"", value);
+    } else if (key == "Site") {
+      h.site_ = value;
     } else if (key == "TimeControl") {
       if (value == "-") {
         h.start_time_ = game::header::infinite_time;

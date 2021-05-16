@@ -21,6 +21,11 @@ file(GLOB filter_pgns-files exe/filter_pgns.cc)
 add_executable(filter_pgns ${filter_pgns-files})
 target_link_libraries(filter_pgns chessbot)
 
+file(GLOB train_nn-files exe/train_nn.cc)
+add_executable(train_nn ${train_nn-files})
+target_link_libraries(train_nn chessbot matplot)
+target_compile_definitions(train_nn PRIVATE CHESSBOT_PLOT=1)
+
 add_executable(chessbot-test ${chessbot-test-files})
 target_link_libraries(chessbot-test boost-filesystem chessbot doctest)
 

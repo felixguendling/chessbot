@@ -4,9 +4,10 @@
 #include <array>
 #include <tuple>
 
-namespace chessbot {
+#include "chessbot/real_t.h"
+#include "chessbot/sigmoid.h"
 
-using real_t = float;
+namespace chessbot {
 
 // ### TANH ###
 // inline real_t activation_fn(real_t const t) { return std::tanh(t); }
@@ -21,9 +22,7 @@ using real_t = float;
 //}
 
 // ### SIGMOID ###
-inline real_t activation_fn(real_t const t) {
-  return 1.0F / (1.0F + std::exp(-t));
-}
+inline real_t activation_fn(real_t const t) { return sigmoid(t); }
 inline real_t activation_fn_d(real_t const x) { return x * (1 - x); }
 inline real_t scale_to_output(real_t const min, real_t const max,
                               real_t const v) {
@@ -126,6 +125,39 @@ struct layer {
     }
     for (auto i = 0U; i < LayerSize; ++i) {
       bias_weight_[i] += (-learning_rate) * deltas[i];
+    }
+  }
+
+  template <bool Square>
+  void adam_assign_moment(std::array<real_t, LayerSize> const& deltas,
+                          std::array<real_t, InputSize> const& prev_layer_out,
+                          real_t const beta, unsigned const t) {
+    for (auto i = 0U; i < LayerSize; ++i) {
+      for (auto j = 0U; j < InputSize; ++j) {
+        weights_[i][j] = beta * weights_[i][j] +
+                         (1 - beta) * (deltas[i] * prev_layer_out[j]) *
+                             (Square ? (deltas[i] * prev_layer_out[j]) : 1);
+        weights_[i][j] /= 1 - std::pow(beta, t);
+      }
+    }
+    for (auto i = 0U; i < LayerSize; ++i) {
+      bias_weight_[i] = beta * bias_weight_[i] +
+                        (1 - beta) * deltas[i] *
+                            (Square ? (deltas[i] * prev_layer_out[i]) : 1);
+      bias_weight_[i] /= 1 - std::pow(beta, t);
+    }
+  }
+
+  void adam_update_weights(layer const& m, layer const& v, real_t const alpha) {
+    for (auto i = 0U; i < LayerSize; ++i) {
+      for (auto j = 0U; j < InputSize; ++j) {
+        weights_[i][j] -=
+            alpha * m.weights_[i][j] / (std::sqrt(v.weights_[i][j]) + 1E-8);
+      }
+    }
+    for (auto i = 0U; i < LayerSize; ++i) {
+      bias_weight_[i] -=
+          alpha * m.bias_weight_[i] / (std::sqrt(v.bias_weight_[i]) + 1E-8);
     }
   }
 
@@ -283,17 +315,26 @@ struct network {
     }
   }
 
-  template <size_t BatchSize>
+  template <size_t BatchSize, typename PlotFn>
   void train_epoch(std::array<input_t, BatchSize> const& in,
                    std::array<output_t, BatchSize> const& expected,
-                   real_t const learning_rate) {
-    zero_out(sum_);
-    for (auto batch_idx = 0; batch_idx < BatchSize; ++batch_idx) {
-      copy_ = layers_;
-      train(sum_, in[batch_idx], expected[batch_idx], learning_rate);
+                   real_t const learning_rate, unsigned inner_loop_size,
+                   PlotFn&& plot) {
+    constexpr auto const beta1 = 0.9;
+    constexpr auto const beta2 = 0.99;
+    auto moment1 = 0.0;
+    auto moment2 = 0.0;
+    auto t = 0.0;
+    for (auto i = 0; i < inner_loop_size; i++) {
+      zero_out(sum_);
+      for (auto batch_idx = 0; batch_idx < BatchSize; ++batch_idx) {
+        copy_ = layers_;
+        train(sum_, in[batch_idx], expected[batch_idx], learning_rate);
+      }
+      divide_by_batch_size<BatchSize>(sum_);
+      add(layers_, sum_);
+      plot(i);
     }
-    divide_by_batch_size<BatchSize>(sum_);
-    add(layers_, sum_);
   }
 
   void train(layers_tuple_t& sum_layers, input_t const& in,

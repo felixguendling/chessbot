@@ -28,6 +28,43 @@ inline unsigned count_repetitions(position const& p,
 }
 
 template <color ToMove>
+bool blocker_can_move(position const& p, unsigned king_square_idx,
+                      bitboard const from, bitboard const to,
+                      bitboard const en_passant) {
+  auto const from_idx = cista::trailing_zeros(from);
+  auto const line_to_edge_bb =
+      rook_line_to_edge_bb[king_square_idx][from_idx] |
+      bishop_line_to_edge_bb[king_square_idx][from_idx];
+  if (line_to_edge_bb & to) {
+    return true;
+  }
+  auto valid = true;
+  auto const updated_blockers_for_king =
+      p.blockers_for_king_[ToMove] ^ (from | en_passant);
+  for_each_set_bit(
+      p.pinners_[ToMove] & line_to_edge_bb, [&](bitboard const pinner) {
+        auto const pinner_idx = cista::trailing_zeros(pinner);
+        auto const line_to_pinner =
+            bishop_line_bb[king_square_idx][pinner_idx] |
+            rook_line_bb[king_square_idx][pinner_idx];
+        valid = valid && (line_to_pinner & updated_blockers_for_king);
+      });
+  return valid;
+}
+
+inline bool blocker_can_move(position const& p, unsigned king_square_idx,
+                             bitboard const from, bitboard const to,
+                             bitboard const en_passant) {
+  switch (p.to_move_) {
+    case color::WHITE:
+      return blocker_can_move<WHITE>(p, king_square_idx, from, to, en_passant);
+    case color::BLACK:
+      return blocker_can_move<BLACK>(p, king_square_idx, from, to, en_passant);
+    default: return false;
+  }
+}
+
+template <color ToMove>
 move* generate_moves(position const& p, move* move_list) {
   auto const our_king = p.pieces<ToMove, piece_type::KING>();
   auto const opposing_pawns =
@@ -102,30 +139,6 @@ move* generate_moves(position const& p, move* move_list) {
   };
 
   // OLD CODE END
-
-  auto const blocker_can_move = [&](bitboard const from, bitboard const to,
-                                    bitboard const en_passant) {
-    auto const from_idx = cista::trailing_zeros(from);
-    auto const line_to_edge_bb =
-        rook_line_to_edge_bb[king_square_idx][from_idx] |
-        bishop_line_to_edge_bb[king_square_idx][from_idx];
-    if (line_to_edge_bb & to) {
-      return true;
-    }
-    auto valid = true;
-    auto const updated_blockers_for_king =
-        p.blockers_for_king_[ToMove] ^ (from | en_passant);
-    for_each_set_bit(
-        p.pinners_[ToMove] & line_to_edge_bb, [&](bitboard const pinner) {
-          auto const pinner_idx = cista::trailing_zeros(pinner);
-          auto const line_to_pinner =
-              bishop_line_bb[king_square_idx][pinner_idx] |
-              rook_line_bb[king_square_idx][pinner_idx];
-          valid = valid && (line_to_pinner & updated_blockers_for_king);
-        });
-    return valid;
-  };
-
   auto const is_valid_move = [&](bitboard const from, bitboard const to,
                                  special_move const sm) -> bool {
     if (!p.checkers_[ToMove]  // no check
@@ -141,7 +154,7 @@ move* generate_moves(position const& p, move* move_list) {
       } else {  // in check from one piece
         // blocker for king moves
         if (from & p.blockers_for_king_[ToMove]) {
-          if (!blocker_can_move(from, to, 0)) {
+          if (!blocker_can_move<ToMove>(p, king_square_idx, from, to, 0)) {
             return false;
           }
         }
@@ -169,11 +182,12 @@ move* generate_moves(position const& p, move* move_list) {
       if ((p.en_passant_ & to) && (p.piece_states_[PAWN] & from)) {
         auto const capture_square_bb =
             ToMove == color::WHITE ? p.en_passant_ << 8 : p.en_passant_ >> 8;
-        if (!blocker_can_move(capture_square_bb, to, from)) {
+        if (!blocker_can_move<ToMove>(p, king_square_idx, capture_square_bb, to,
+                                      from)) {
           return false;
         }
       }
-      return blocker_can_move(from, to, 0);
+      return blocker_can_move<ToMove>(p, king_square_idx, from, to, 0);
     }
 
     assert(false);

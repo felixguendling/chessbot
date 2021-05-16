@@ -13,6 +13,7 @@ namespace chessbot {
 
 struct game {
   struct header {
+    std::string site_;
     static constexpr auto const infinite_time =
         std::numeric_limits<unsigned>::max();
     unsigned elo_white_{0U}, elo_black_{0U};
