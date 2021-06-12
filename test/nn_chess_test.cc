@@ -50,8 +50,7 @@ TEST_CASE("nn classifies legal moves - one position") {
   }
 }
 
-TEST_CASE(
-    "nn classifies legal moves - random position" /* * doctest::skip(true) */) {
+TEST_CASE("nn classifies legal moves - random position" * doctest::skip(true)) {
   srand(0);
 
   auto pl_absolute_errors =
@@ -186,7 +185,7 @@ TEST_CASE(
   pl_relative_errors.do_plot();
 }
 
-TEST_CASE("train from pgn") {
+TEST_CASE("train from pgn" * doctest::skip(true)) {
   auto const learning_rate = 0.53;
   auto const inner_loop_size = 1000;
   auto pgn = utl::cstr{
@@ -240,9 +239,8 @@ TEST_CASE("train from pgn") {
     std::cout << "\n\nmove made: " << m << "\n";
   }
 
-  for (auto i = 0; i < inner_loop_size; i++) {
-    n->train_epoch(input, expected, learning_rate);
-  }
+  n->train_epoch(input, expected, learning_rate, inner_loop_size,
+                 [](unsigned) {});
 
   auto const print_best_moves = [&]() {
     auto nn_evals = n->estimate(nn_input_from_position(p));
@@ -280,7 +278,7 @@ auto stockfish_evals_test_set(
   return expected;
 }
 
-TEST_CASE("train from pgn only startpos") {
+TEST_CASE("train from pgn only startpos" * doctest::skip(true)) {
   auto const learning_rate = 1.;
   auto const inner_loop_size = 100000;
 
@@ -305,14 +303,14 @@ TEST_CASE("train from pgn only startpos") {
     expected[i + 1] = to_expected(stockfish_evals(p));
   }
 
-  for (auto i = 0; i < inner_loop_size; i++) {
-    n->train_epoch(input, expected, learning_rate);
-    if (i != 0 && i % (inner_loop_size / 100) == 0) {
-      const auto [e1, e2] = determine_error(*n, input, expected);
-      pl_absolute_errors.add_entry(i, e1);
-      pl_max_errors.add_entry(i, e2);
-    }
-  }
+  n->train_epoch(input, expected, learning_rate, inner_loop_size,
+                 [&](unsigned i) {
+                   if (i != 0 && i % (inner_loop_size / 100) == 0) {
+                     const auto [e1, e2] = determine_error(*n, input, expected);
+                     pl_absolute_errors.add_entry(i, e1);
+                     pl_max_errors.add_entry(i, e2);
+                   }
+                 });
 
   auto const print_best_moves = [&]() {
     auto nn_evals = n->estimate(nn_input_from_position(p));

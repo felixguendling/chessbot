@@ -12,7 +12,7 @@
 using namespace chessbot;
 
 constexpr auto const batch_size = size_t{100U};
-constexpr auto const inner_loop_size = 1000000;
+constexpr auto const inner_loop_size = 100000;
 constexpr auto const learning_rate = 0.53;
 
 int main(int argc, char** argv) {
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
   auto pl_absolute_errors = plot{""};
   auto pl_max_errors = plot{""};
 
-  auto n = std::make_unique<network<input_size, 32, output_size>>();
+  auto n = std::make_unique<network<input_size, 16, 16, output_size>>();
 
   std::cout << "training network ...\n";
   n->train_epoch(

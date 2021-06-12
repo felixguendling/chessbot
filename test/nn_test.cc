@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "chessbot/nn.h"
+#include "chessbot/plot.h"
 #include "chessbot/timing.h"
 
 using namespace chessbot;
@@ -83,19 +84,44 @@ TEST_CASE("nn adam update") {
   l2.bias_weight_[0] = 0.60F;
   l2.bias_weight_[1] = 0.60F;
 
+  auto l1_orig = layer<2, 2>{};
+  l1_orig.weights_[0][0] = 0.15F;
+  l1_orig.weights_[0][1] = 0.20F;
+  l1_orig.weights_[1][0] = 0.25F;
+  l1_orig.weights_[1][1] = 0.30F;
+  l1_orig.bias_weight_[0] = 0.35F;
+  l1_orig.bias_weight_[1] = 0.35F;
+
+  auto l2_orig = layer<2, 2>{};
+  l2_orig.weights_[0][0] = 0.40F;
+  l2_orig.weights_[0][1] = 0.45F;
+  l2_orig.weights_[1][0] = 0.50F;
+  l2_orig.weights_[1][1] = 0.55F;
+  l2_orig.bias_weight_[0] = 0.60F;
+  l2_orig.bias_weight_[1] = 0.60F;
+
+  network<2, 2, 2> n_adam_epoch;
+  auto& [l1_adam_epoch, l2_adam_epoch] = n_adam_epoch.layers_;
+
+  l1_adam_epoch.weights_[0][0] = 0.15F;
+  l1_adam_epoch.weights_[0][1] = 0.20F;
+  l1_adam_epoch.weights_[1][0] = 0.25F;
+  l1_adam_epoch.weights_[1][1] = 0.30F;
+  l1_adam_epoch.bias_weight_[0] = 0.35F;
+  l1_adam_epoch.bias_weight_[1] = 0.35F;
+
+  l2_adam_epoch.weights_[0][0] = 0.40F;
+  l2_adam_epoch.weights_[0][1] = 0.45F;
+  l2_adam_epoch.weights_[1][0] = 0.50F;
+  l2_adam_epoch.weights_[1][1] = 0.55F;
+  l2_adam_epoch.bias_weight_[0] = 0.60F;
+  l2_adam_epoch.bias_weight_[1] = 0.60F;
+
   auto const input = std::array{real_t{0.05}, real_t{0.1}};
   auto const expected = std::array{real_t{0.01}, real_t{0.99}};
 
-  auto const l1_net = l1.net(input);
-  auto const l2_net = l2.net(l1.estimate(input));
-
-  auto const l1_out = l1.estimate(input);
-  auto const l2_out = l2.estimate(l1_out);
-
-  auto const diff =
-      std::array{expected[0] - l2_out[0], expected[1] - l2_out[1]};
-  auto const l2_deltas = l2.deltas(diff, l2_out);
-  auto const l1_deltas = l1.deltas(l2, l1_out, l2_deltas);
+  auto const input_epoch = std::array<std::array<real_t, 2>, 1>{input};
+  auto const expected_epoch = std::array<std::array<real_t, 2>, 1>{expected};
 
   auto l1_m = layer<2, 2>{};
   auto l2_m = layer<2, 2>{};
@@ -110,16 +136,90 @@ TEST_CASE("nn adam update") {
   // TODO learn quadratic function
   // TODO parallel: normal update instead of adam to compare errors
 
-  for (auto i = 0U; i != inner_loop_size; ++i) {
-    l1_m.adam_assign_moment<false>(l1_deltas, l1_out, beta1, i);
-    l2_m.adam_assign_moment<false>(l2_deltas, input, beta1, i);
-    l1_v.adam_assign_moment<true>(l1_deltas, l1_out, beta2, i);
-    l2_v.adam_assign_moment<true>(l2_deltas, input, beta2, i);
-    l1.adam_update_weights(l1_m, l1_v, alpha);
-    l2.adam_update_weights(l2_m, l2_v, alpha);
+  std::cout << "m for l1: " << l1_m << "\n";
+  std::cout << "m for l2: " << l2_m << "\n";
+  std::cout << "v for l1: " << l1_v << "\n";
+  std::cout << "v for l2: " << l2_v << "\n";
 
-    // TODO plot error
+  std::cout << "---- LOOP\n";
+  auto pl_absolute_errors = plot{""};
+
+  constexpr auto const loop_size = 100000;
+
+  n_adam_epoch.train_epoch_adam(
+      input_epoch, expected_epoch, alpha, loop_size, [&](unsigned const i) {
+        auto const out = n_adam_epoch.estimate(input);
+        auto const e0_orig = (out[0] - expected[0]);
+        auto const e1_orig = (out[1] - expected[1]);
+        pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig,
+                                     2);
+      });
+
+  for (auto i = 0U; i != loop_size; ++i) {
+    auto const t = i + 1;
+
+    auto const l1_net = l1.net(input);
+    auto const l2_net = l2.net(l1.estimate(input));
+
+    auto const l1_out = l1.estimate(input);
+    auto const l2_out = l2.estimate(l1_out);
+
+    auto const diff =
+        std::array{expected[0] - l2_out[0], expected[1] - l2_out[1]};
+    auto const l2_deltas = l2.deltas(diff, l2_out);
+    auto const l1_deltas = l1.deltas(l2, l1_out, l2_deltas);
+
+    l1_m.adam_assign_moment<false>(l1_deltas, input, beta1);
+    l2_m.adam_assign_moment<false>(l2_deltas, l1_out, beta1);
+    l1_v.adam_assign_moment<true>(l1_deltas, input, beta2);
+    l2_v.adam_assign_moment<true>(l2_deltas, l1_out, beta2);
+    l1.adam_update_weights(l1_m, l1_v, beta1, beta2, alpha, t);
+    l2.adam_update_weights(l2_m, l2_v, beta1, beta2, alpha, t);
+
+    std::cout << "t=" << t << "\n";
+    std::cout << "m for l1: " << l1_m << "\n";
+    std::cout << "m for l2: " << l2_m << "\n";
+    std::cout << "v for l1: " << l1_v << "\n";
+    std::cout << "v for l2: " << l2_v << "\n";
+
+    auto const l1_out_1 = l1.estimate(input);
+    auto const l2_out_1 = l2.estimate(l1_out);
+
+    auto const e0 = (l2_out_1[0] - expected[0]);
+    auto const e1 = (l2_out_1[1] - expected[1]);
+
+    pl_absolute_errors.add_entry(i, e0 * e0 + e1 * e1, 0);
+
+    // original
+
+    auto const l1_net_orig = l1_orig.net(input);
+    auto const l2_net_orig = l2_orig.net(l1_orig.estimate(input));
+
+    auto const l1_out_orig = l1_orig.estimate(input);
+    auto const l2_out_orig = l2_orig.estimate(l1_out_orig);
+
+    auto const diff_orig =
+        std::array{expected[0] - l2_out_orig[0], expected[1] - l2_out_orig[1]};
+    auto const l2_deltas_orig = l2_orig.deltas(diff_orig, l2_out_orig);
+    auto const l1_deltas_orig =
+        l1_orig.deltas(l2_orig, l1_out_orig, l2_deltas_orig);
+    l2_orig.update_weights(l2_deltas_orig, l1_out_orig, 0.5F);
+    l1_orig.update_weights(l1_deltas_orig, input, 0.5F);
+
+    auto const l1_out_1_orig = l1_orig.estimate(input);
+    auto const l2_out_1_orig = l2_orig.estimate(l1_out_orig);
+
+    auto const e0_orig = (l2_out_1_orig[0] - expected[0]);
+    auto const e1_orig = (l2_out_1_orig[1] - expected[1]);
+
+    pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig, 1);
   }
+  pl_absolute_errors.do_plot();
+
+  auto const l1_out_1 = l1.estimate(input);
+  auto const l2_out_1 = l2.estimate(l1_out_1);
+  CHECK(l2_out_1[0] == doctest::Approx(0.01));
+  CHECK(l2_out_1[1] == doctest::Approx(0.99));
 }
 
 TEST_CASE("nn test") {
@@ -233,9 +333,7 @@ TEST_CASE("nn quadratic function (batch == online) for batch size 1") {
     online_timing_sum += CHESSBOT_TIMING_US(online_timing);
 
     CHESSBOT_START_TIMING(batch_timing);
-    for (auto k = 0U; k < train_loop_size; ++k) {
-      n_batch->train_epoch(in, out, 0.1);
-    }
+    n_batch->train_epoch(in, out, 0.1, train_loop_size, [](unsigned) {});
     CHESSBOT_STOP_TIMING(batch_timing);
     batch_timing_sum += CHESSBOT_TIMING_US(batch_timing);
   }
@@ -283,7 +381,7 @@ TEST_CASE("nn test epoch") {
 
   CHECK(error(n.estimate(input[0])) == doctest::Approx(0.298371109));
 
-  n.train_epoch(input, expected, learning_rate);
+  n.train_epoch(input, expected, learning_rate, 1, [](unsigned) {});
 
   CHECK(l2.weights_[0][0] == doctest::Approx(0.35891648));
   CHECK(l2.weights_[0][1] == doctest::Approx(0.408666186));
@@ -298,15 +396,12 @@ TEST_CASE("nn test epoch") {
   // only true if we skip the bias weight update
   //  CHECK(error(n.estimate(input[0])) == doctest::Approx(0.291027924));
 
-  auto err = real_t{};
-  for (auto i = 0; i < 10000; ++i) {
-    n.train_epoch(input, expected, learning_rate);
-    auto const out = n.estimate(input[0]);
+  n.train_epoch(input, expected, learning_rate, 10000, [](unsigned) {});
+  auto const out = n.estimate(input[0]);
 
-    auto const diff_0 = (out[0] - expected[0][0]);
-    auto const diff_1 = (out[1] - expected[0][1]);
-    err = error(out);
-  }
+  auto const diff_0 = (out[0] - expected[0][0]);
+  auto const diff_1 = (out[1] - expected[0][1]);
+  auto const err = error(out);
 
   CHECK(err < 0.0001);
 }

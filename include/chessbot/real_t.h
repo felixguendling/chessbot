@@ -2,6 +2,6 @@
 
 namespace chessbot {
 
-using real_t = float;
+using real_t = double;
 
 }
