@@ -68,38 +68,6 @@ TEST_CASE("nn simple") {
 }
 
 TEST_CASE("nn adam update") {
-  auto l1 = layer<2, 2>{};
-  l1.weights_[0][0] = 0.15F;
-  l1.weights_[0][1] = 0.20F;
-  l1.weights_[1][0] = 0.25F;
-  l1.weights_[1][1] = 0.30F;
-  l1.bias_weight_[0] = 0.35F;
-  l1.bias_weight_[1] = 0.35F;
-
-  auto l2 = layer<2, 2>{};
-  l2.weights_[0][0] = 0.40F;
-  l2.weights_[0][1] = 0.45F;
-  l2.weights_[1][0] = 0.50F;
-  l2.weights_[1][1] = 0.55F;
-  l2.bias_weight_[0] = 0.60F;
-  l2.bias_weight_[1] = 0.60F;
-
-  auto l1_orig = layer<2, 2>{};
-  l1_orig.weights_[0][0] = 0.15F;
-  l1_orig.weights_[0][1] = 0.20F;
-  l1_orig.weights_[1][0] = 0.25F;
-  l1_orig.weights_[1][1] = 0.30F;
-  l1_orig.bias_weight_[0] = 0.35F;
-  l1_orig.bias_weight_[1] = 0.35F;
-
-  auto l2_orig = layer<2, 2>{};
-  l2_orig.weights_[0][0] = 0.40F;
-  l2_orig.weights_[0][1] = 0.45F;
-  l2_orig.weights_[1][0] = 0.50F;
-  l2_orig.weights_[1][1] = 0.55F;
-  l2_orig.bias_weight_[0] = 0.60F;
-  l2_orig.bias_weight_[1] = 0.60F;
-
   network<2, 2, 2> n_adam_epoch;
   auto& [l1_adam_epoch, l2_adam_epoch] = n_adam_epoch.layers_;
 
@@ -117,16 +85,62 @@ TEST_CASE("nn adam update") {
   l2_adam_epoch.bias_weight_[0] = 0.60F;
   l2_adam_epoch.bias_weight_[1] = 0.60F;
 
+  network<2, 2, 2> n_sgd_epoch;
+  auto& [l1_sgd_epoch, l2_sgd_epoch] = n_sgd_epoch.layers_;
+
+  l1_sgd_epoch.weights_[0][0] = 0.15F;
+  l1_sgd_epoch.weights_[0][1] = 0.20F;
+  l1_sgd_epoch.weights_[1][0] = 0.25F;
+  l1_sgd_epoch.weights_[1][1] = 0.30F;
+  l1_sgd_epoch.bias_weight_[0] = 0.35F;
+  l1_sgd_epoch.bias_weight_[1] = 0.35F;
+
+  l2_sgd_epoch.weights_[0][0] = 0.40F;
+  l2_sgd_epoch.weights_[0][1] = 0.45F;
+  l2_sgd_epoch.weights_[1][0] = 0.50F;
+  l2_sgd_epoch.weights_[1][1] = 0.55F;
+  l2_sgd_epoch.bias_weight_[0] = 0.60F;
+  l2_sgd_epoch.bias_weight_[1] = 0.60F;
+
+  network<2, 2, 2> n_ada_grad_epoch;
+  auto& [l1_ada_grad_epoch, l2_ada_grad_epoch] = n_ada_grad_epoch.layers_;
+
+  l1_ada_grad_epoch.weights_[0][0] = 0.15F;
+  l1_ada_grad_epoch.weights_[0][1] = 0.20F;
+  l1_ada_grad_epoch.weights_[1][0] = 0.25F;
+  l1_ada_grad_epoch.weights_[1][1] = 0.30F;
+  l1_ada_grad_epoch.bias_weight_[0] = 0.35F;
+  l1_ada_grad_epoch.bias_weight_[1] = 0.35F;
+
+  l2_ada_grad_epoch.weights_[0][0] = 0.40F;
+  l2_ada_grad_epoch.weights_[0][1] = 0.45F;
+  l2_ada_grad_epoch.weights_[1][0] = 0.50F;
+  l2_ada_grad_epoch.weights_[1][1] = 0.55F;
+  l2_ada_grad_epoch.bias_weight_[0] = 0.60F;
+  l2_ada_grad_epoch.bias_weight_[1] = 0.60F;
+
+  network<2, 2, 2> n_rms_prop_epoch;
+  auto& [l1_rms_prop_epoch, l2_rms_prop_epoch] = n_rms_prop_epoch.layers_;
+
+  l1_rms_prop_epoch.weights_[0][0] = 0.15F;
+  l1_rms_prop_epoch.weights_[0][1] = 0.20F;
+  l1_rms_prop_epoch.weights_[1][0] = 0.25F;
+  l1_rms_prop_epoch.weights_[1][1] = 0.30F;
+  l1_rms_prop_epoch.bias_weight_[0] = 0.35F;
+  l1_rms_prop_epoch.bias_weight_[1] = 0.35F;
+
+  l2_rms_prop_epoch.weights_[0][0] = 0.40F;
+  l2_rms_prop_epoch.weights_[0][1] = 0.45F;
+  l2_rms_prop_epoch.weights_[1][0] = 0.50F;
+  l2_rms_prop_epoch.weights_[1][1] = 0.55F;
+  l2_rms_prop_epoch.bias_weight_[0] = 0.60F;
+  l2_rms_prop_epoch.bias_weight_[1] = 0.60F;
+
   auto const input = std::array{real_t{0.05}, real_t{0.1}};
   auto const expected = std::array{real_t{0.01}, real_t{0.99}};
 
   auto const input_epoch = std::array<std::array<real_t, 2>, 1>{input};
   auto const expected_epoch = std::array<std::array<real_t, 2>, 1>{expected};
-
-  auto l1_m = layer<2, 2>{};
-  auto l2_m = layer<2, 2>{};
-  auto l1_v = layer<2, 2>{};
-  auto l2_v = layer<2, 2>{};
 
   constexpr auto const beta1 = 0.9;
   constexpr auto const beta2 = 0.999;
@@ -136,90 +150,49 @@ TEST_CASE("nn adam update") {
   // TODO learn quadratic function
   // TODO parallel: normal update instead of adam to compare errors
 
-  std::cout << "m for l1: " << l1_m << "\n";
-  std::cout << "m for l2: " << l2_m << "\n";
-  std::cout << "v for l1: " << l1_v << "\n";
-  std::cout << "v for l2: " << l2_v << "\n";
-
-  std::cout << "---- LOOP\n";
   auto pl_absolute_errors = plot{""};
 
-  constexpr auto const loop_size = 100000;
+  constexpr auto const loop_size = 10000;
 
-  n_adam_epoch.train_epoch_adam(
+  n_adam_epoch.train_epoch<adam>(
       input_epoch, expected_epoch, alpha, loop_size, [&](unsigned const i) {
         auto const out = n_adam_epoch.estimate(input);
+        auto const e0_orig = (out[0] - expected[0]);
+        auto const e1_orig = (out[1] - expected[1]);
+        pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig,
+                                     0);
+      });
+
+  n_sgd_epoch.train_epoch<sgd>(
+      input_epoch, expected_epoch, alpha, loop_size, [&](unsigned const i) {
+        auto const out = n_sgd_epoch.estimate(input);
+        auto const e0_orig = (out[0] - expected[0]);
+        auto const e1_orig = (out[1] - expected[1]);
+        pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig,
+                                     1);
+      });
+
+  n_ada_grad_epoch.train_epoch<ada_grad>(
+      input_epoch, expected_epoch, alpha, loop_size, [&](unsigned const i) {
+        auto const out = n_ada_grad_epoch.estimate(input);
         auto const e0_orig = (out[0] - expected[0]);
         auto const e1_orig = (out[1] - expected[1]);
         pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig,
                                      2);
       });
 
-  for (auto i = 0U; i != loop_size; ++i) {
-    auto const t = i + 1;
+  n_rms_prop_epoch.train_epoch<rms_prop>(
+      input_epoch, expected_epoch, alpha, loop_size, [&](unsigned const i) {
+        auto const out = n_rms_prop_epoch.estimate(input);
+        auto const e0_orig = (out[0] - expected[0]);
+        auto const e1_orig = (out[1] - expected[1]);
+        pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig,
+                                     3);
+      });
 
-    auto const l1_net = l1.net(input);
-    auto const l2_net = l2.net(l1.estimate(input));
+  pl_absolute_errors.add_legend("ADAM", "SGD", "ADA Grad", "RMS Prop");
 
-    auto const l1_out = l1.estimate(input);
-    auto const l2_out = l2.estimate(l1_out);
-
-    auto const diff =
-        std::array{expected[0] - l2_out[0], expected[1] - l2_out[1]};
-    auto const l2_deltas = l2.deltas(diff, l2_out);
-    auto const l1_deltas = l1.deltas(l2, l1_out, l2_deltas);
-
-    l1_m.adam_assign_moment<false>(l1_deltas, input, beta1);
-    l2_m.adam_assign_moment<false>(l2_deltas, l1_out, beta1);
-    l1_v.adam_assign_moment<true>(l1_deltas, input, beta2);
-    l2_v.adam_assign_moment<true>(l2_deltas, l1_out, beta2);
-    l1.adam_update_weights(l1_m, l1_v, beta1, beta2, alpha, t);
-    l2.adam_update_weights(l2_m, l2_v, beta1, beta2, alpha, t);
-
-    std::cout << "t=" << t << "\n";
-    std::cout << "m for l1: " << l1_m << "\n";
-    std::cout << "m for l2: " << l2_m << "\n";
-    std::cout << "v for l1: " << l1_v << "\n";
-    std::cout << "v for l2: " << l2_v << "\n";
-
-    auto const l1_out_1 = l1.estimate(input);
-    auto const l2_out_1 = l2.estimate(l1_out);
-
-    auto const e0 = (l2_out_1[0] - expected[0]);
-    auto const e1 = (l2_out_1[1] - expected[1]);
-
-    pl_absolute_errors.add_entry(i, e0 * e0 + e1 * e1, 0);
-
-    // original
-
-    auto const l1_net_orig = l1_orig.net(input);
-    auto const l2_net_orig = l2_orig.net(l1_orig.estimate(input));
-
-    auto const l1_out_orig = l1_orig.estimate(input);
-    auto const l2_out_orig = l2_orig.estimate(l1_out_orig);
-
-    auto const diff_orig =
-        std::array{expected[0] - l2_out_orig[0], expected[1] - l2_out_orig[1]};
-    auto const l2_deltas_orig = l2_orig.deltas(diff_orig, l2_out_orig);
-    auto const l1_deltas_orig =
-        l1_orig.deltas(l2_orig, l1_out_orig, l2_deltas_orig);
-    l2_orig.update_weights(l2_deltas_orig, l1_out_orig, 0.5F);
-    l1_orig.update_weights(l1_deltas_orig, input, 0.5F);
-
-    auto const l1_out_1_orig = l1_orig.estimate(input);
-    auto const l2_out_1_orig = l2_orig.estimate(l1_out_orig);
-
-    auto const e0_orig = (l2_out_1_orig[0] - expected[0]);
-    auto const e1_orig = (l2_out_1_orig[1] - expected[1]);
-
-    pl_absolute_errors.add_entry(i, e0_orig * e0_orig + e1_orig * e1_orig, 1);
-  }
   pl_absolute_errors.do_plot();
-
-  auto const l1_out_1 = l1.estimate(input);
-  auto const l2_out_1 = l2.estimate(l1_out_1);
-  CHECK(l2_out_1[0] == doctest::Approx(0.01));
-  CHECK(l2_out_1[1] == doctest::Approx(0.99));
 }
 
 TEST_CASE("nn test") {

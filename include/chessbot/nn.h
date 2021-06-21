@@ -4,6 +4,7 @@
 #include <array>
 #include <tuple>
 
+#include "chessbot/optimizer.h"
 #include "chessbot/real_t.h"
 #include "chessbot/sigmoid.h"
 
@@ -134,55 +135,6 @@ struct layer {
     }
     for (auto i = 0U; i < LayerSize; ++i) {
       bias_weight_[i] += (-learning_rate) * deltas[i];
-    }
-  }
-
-  template <bool Square>
-  void adam_assign_moment(layer const& gradient, real_t const beta) {
-    for (auto i = 0U; i < LayerSize; ++i) {
-      for (auto j = 0U; j < InputSize; ++j) {
-        weights_[i][j] = beta * weights_[i][j] +
-                         (1 - beta) * (gradient.weights_[i][j]) *
-                             (Square ? (gradient.weights_[i][j]) : 1);
-      }
-    }
-    for (auto i = 0U; i < LayerSize; ++i) {
-      bias_weight_[i] = beta * bias_weight_[i] +
-                        (1 - beta) * gradient.bias_weight_[i] *
-                            (Square ? (gradient.bias_weight_[i]) : 1);
-    }
-  }
-
-  template <bool Square>
-  void adam_assign_moment(std::array<real_t, LayerSize> const& deltas,
-                          std::array<real_t, InputSize> const& prev_layer_out,
-                          real_t const beta) {
-    auto gradient = layer{};
-    for (auto i = 0U; i < LayerSize; ++i) {
-      for (auto j = 0U; j < InputSize; ++j) {
-        gradient.weights_[i][j] = deltas[i] * prev_layer_out[j];
-      }
-    }
-    for (auto i = 0U; i < LayerSize; ++i) {
-      gradient.bias_weight_[i] = deltas[i];
-    }
-    adam_assign_moment<Square>(gradient, beta);
-  }
-
-  void adam_update_weights(layer const& m, layer const& v, real_t const beta1,
-                           real_t const beta2, real_t const alpha,
-                           unsigned const t) {
-    for (auto i = 0U; i < LayerSize; ++i) {
-      for (auto j = 0U; j < InputSize; ++j) {
-        weights_[i][j] -=
-            alpha * (m.weights_[i][j] / (1 - std::pow(beta1, t))) /
-            (std::sqrt(v.weights_[i][j] / (1 - std::pow(beta2, t))) + 1E-8);
-      }
-    }
-    for (auto i = 0U; i < LayerSize; ++i) {
-      bias_weight_[i] -=
-          alpha * (m.bias_weight_[i] / (1 - std::pow(beta1, t))) /
-          (std::sqrt((v.bias_weight_[i] / (1 - std::pow(beta2, t)))) + 1E-8);
     }
   }
 
@@ -340,68 +292,21 @@ struct network {
     }
   }
 
-  template <size_t BatchSize, typename PlotFn>
+  template <template <typename> typename Optimizer = sgd, size_t BatchSize,
+            typename PlotFn>
   void train_epoch(std::array<input_t, BatchSize> const& in,
                    std::array<output_t, BatchSize> const& expected,
-                   real_t const learning_rate, unsigned inner_loop_size,
+                   real_t const learning_rate, unsigned const outer_loop_size,
                    PlotFn&& plot) {
-    for (auto i = 0; i < inner_loop_size; i++) {
-      zero_out(sum_);
-      for (auto batch_idx = 0; batch_idx < BatchSize; ++batch_idx) {
-        copy_ = layers_;
-        train(sum_, in[batch_idx], expected[batch_idx], learning_rate);
-      }
-      divide_by_batch_size<BatchSize>(sum_);
-      add(layers_, sum_);
-      plot(i);
-    }
-  }
-
-  template <bool Square, std::size_t... I>
-  void update_adam_moments(layers_tuple_t& moment, real_t const beta,
-                           std::index_sequence<I...>) {
-    auto const update_layer = [&](auto const& gradient, auto& moment) {
-      moment.template adam_assign_moment<Square>(gradient, beta);
-    };
-    (update_layer(std::get<I>(sum_), std::get<I>(moment)), ...);
-  }
-
-  template <std::size_t... I>
-  void update_adam_weights(layers_tuple_t const& m, layers_tuple_t const& v,
-                           real_t const beta1, real_t const beta2,
-                           real_t const alpha, unsigned const t,
-                           std::index_sequence<I...>) {
-    (std::get<I>(layers_).adam_update_weights(std::get<I>(m), std::get<I>(v),
-                                              beta1, beta2, alpha, t),
-     ...);
-  }
-
-  template <size_t BatchSize, typename PlotFn>
-  void train_epoch_adam(std::array<input_t, BatchSize> const& in,
-                        std::array<output_t, BatchSize> const& expected,
-                        real_t const learning_rate,
-                        unsigned const outer_loop_size, PlotFn&& plot) {
-    constexpr auto const beta1 = 0.9;
-    constexpr auto const beta2 = 0.99;
-    auto m = layers_tuple_t{};
-    auto v = layers_tuple_t{};
-    auto t = 0.0;
+    auto optimizer = Optimizer<layers_tuple_t>{};
     for (auto i = 0; i != outer_loop_size; i++) {
-      auto const t = i + 1;
-
       zero_out(sum_);
       for (auto batch_idx = 0; batch_idx < BatchSize; ++batch_idx) {
         copy_ = layers_;
         train(sum_, in[batch_idx], expected[batch_idx], -1);
       }
       divide_by_batch_size<BatchSize>(sum_);
-
-      constexpr auto const indices =
-          std::make_index_sequence<number_of_layers>();
-      update_adam_moments<false>(m, beta1, indices);
-      update_adam_moments<true>(v, beta2, indices);
-      update_adam_weights(m, v, beta1, beta2, learning_rate, t, indices);
-
+      optimizer.update(sum_, layers_);
       plot(i);
     }
   }
